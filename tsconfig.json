@@ -1,0 +1,17 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+, "app/(tabs)/index.js", "app/(tabs)/_layout.js", "components/themed-text.js", "components/themed-view.js", "components/themed-text.js", "components/parallax-scroll-view.js", "components/hello-wave.js", "components/haptic-tab.js", "components/external-link.js", "app/modal.js", "app/_layout.js", "app/(tabs)/index.js", "app/(tabs)/explore.js", "app/(tabs)/_layout.js"  ]
+}
