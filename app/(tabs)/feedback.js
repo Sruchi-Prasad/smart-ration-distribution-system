@@ -11,16 +11,27 @@ export default function FeedbackPage() {
   const [message, setMessage] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!message.trim()) {
       Toast.show({ type: "error", text1: "Feedback required ❌" });
       return;
     }
-    // Replace with backend API call
-    Toast.show({ type: "success", text1: "Thank you!", text2: "Your feedback has been submitted ✅" });
-    setSubmitted(true);
-    setName(""); setEmail(""); setMessage(""); setType("Suggestion");
+    try {
+      const res = await fetch("http://localhost:8000/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, type, message })
+      });
+      if (res.ok) {
+        Toast.show({ type: "success", text1: "Thank you!", text2: "Your feedback has been submitted ✅" });
+        setSubmitted(true);
+        setName(""); setEmail(""); setMessage(""); setType("Suggestion");
+      }
+    } catch (err) {
+      Toast.show({ type: "error", text1: "Submission failed ❌" });
+    }
   };
+
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -89,7 +100,7 @@ export default function FeedbackPage() {
         {submitted && (
           <Text style={styles.successText}>✅ Feedback submitted successfully!</Text>
         )}
-        <footer/>
+        <footer />
       </View>
     </ScrollView>
   );

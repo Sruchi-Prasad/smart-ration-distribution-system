@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-
+const User = require("../models/user");   // ✅ ADD THIS LINE
 const Product = require("../models/product");
 const AuditLog = require("../models/auditLog");   // ✅ import audit log model
 const { requireAuth } = require("../middleware/auth");
@@ -22,6 +22,8 @@ router.get("/", requireAuth, async (req, res) => {
 // ==============================
 router.post("/", requireAuth, async (req, res) => {
   try {
+    console.log("✅ ADD PRODUCT API HIT");
+    console.log("Logged User from JWT:", req.user);
     const product = new Product({
       name: req.body.name,
       category: req.body.category,
@@ -33,12 +35,17 @@ router.post("/", requireAuth, async (req, res) => {
     });
 
     await product.save();
-
+    console.log("✅ Product saved:", product.name);
+    // 🔎 Get logged-in user from DB
+    const currentUser = await User.findById(req.user.sub);
+    console.log("✅ DB User Found:", currentUser?.email);
+    // ✅ Create audit log
     await AuditLog.create({
       action: "Added Product",
-      user: req.user.email,
+      user: currentUser?.email || "Unknown User",
       details: `Product: ${product.name}, Qty: ${product.quantity}, Price: ${product.price}`
     });
+    console.log("✅ Audit log saved:", audit);
 
     res.json({ success: true, product });   // 👈 always wrap response
   } catch (err) {
@@ -74,20 +81,35 @@ router.put("/:id", requireAuth, async (req, res) => {
 router.delete("/:id", requireAuth, async (req, res) => {
   try {
     console.log("Deleting product:", req.params.id);
+
     const deleted = await Product.findByIdAndDelete(req.params.id);
 
     if (!deleted) {
       return res.status(404).json({ error: "Product not found" });
     }
 
+    // ✅ get logged user from DB using JWT id
+    const currentUser = await User.findById(req.user.sub);
+
+    console.log("Delete performed by:", currentUser?.email);
+
+    // ✅ create audit log
     await AuditLog.create({
       action: "Deleted Product",
-      user: req.user.email,
+      user: currentUser?.email || "Unknown User",
       details: `Product: ${deleted.name}, ID: ${req.params.id}`
     });
 
-    res.json({ success: true, message: "Product deleted", product: deleted });
+    console.log("✅ Delete audit log saved");
+
+    res.json({
+      success: true,
+      message: "Product deleted",
+      product: deleted
+    });
+
   } catch (err) {
+    console.error("DELETE ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });

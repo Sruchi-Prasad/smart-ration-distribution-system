@@ -75,30 +75,27 @@ export default function ManageProducts() {
   };
 
   // DELETE PRODUCT
-  const deleteProduct = (id) => {
-    console.log("Attempting to delete product with ID:", id); // 👈 log ID
-    Alert.alert("Delete", "Are you sure?", [
-      {
-        text: "Yes",
-        onPress: async () => {
-          try {
-            const res = await fetchWithAuth(`${API}/products/${id}`, { method: "DELETE" });
-            const data = await res.json();   // 👈 parse JSON
-            console.log("DELETE RESPONSE:", data);
+  const deleteProduct = async (id) => {
+        try {
+            console.log("Deleting product:", id);
 
-            if (!res.ok) throw new Error(data.error || `Delete failed with status ${res.status}`);
+            const res = await fetchWithAuth(
+                `http://localhost:8000/api/products/${id}`,
+                {
+                    method: "DELETE",   // 🔴 THIS LINE IS CRITICAL
+                }
+            );
 
-            Alert.alert("Success", "Product deleted!");
-            loadProducts();
-          } catch (err) {
-            Alert.alert("Error", err.message);
-            console.log("DELETE ERROR:", err);
-          }
+            const data = await res.json();
+            console.log("Delete response:", data);
+
+            loadProducts(); // refresh list
+
+        } catch (err) {
+            console.log("Delete error:", err);
         }
-      },
-      { text: "Cancel" }
-    ]);
-  };
+    };
+
 
   const editProduct = (product) => {
     setEditingProduct(product);

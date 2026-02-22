@@ -12,8 +12,9 @@ const shopkeeperRoutes = require("./routes/shopkeeper");
 const adminRoutes = require("./routes/admin");
 const productRoutes = require("./routes/product");
 const loginsRoute = require("./routes/logins");
-
+const feedbackRoutes = require("./routes/feedback");
 const User = require("./models/user");
+const auditRoutes = require("./routes/auditLog");
 
 const app = express();
 const port = process.env.PORT || 8000;
@@ -24,12 +25,12 @@ const port = process.env.PORT || 8000;
 // ============================
 
 // CORS (important for Expo Web)
-app.use(
-  cors({
-    origin: process.env.FRONTEND_URL || "*",
-    credentials: true
-  })
-);
+
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
 
 // Body parser
 app.use(express.json());
@@ -63,7 +64,8 @@ app.use("/api/shopkeeper", shopkeeperRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api", loginsRoute);
-
+app.use("/api/feedback", feedbackRoutes);
+app.use("/api/audit", auditRoutes);
 
 // ============================
 // ✅ ADMIN DASHBOARD STATS

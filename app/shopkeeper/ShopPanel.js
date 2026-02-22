@@ -167,12 +167,12 @@ export default function ShopPanel() {
         fetchData();
     }, []);
 
-    
+
 
     // ✅ Styles
     const styles = StyleSheet.create({
         topGrid: { flexDirection: "row", flexWrap: "wrap", gap: 20, marginBottom: 24 },
-        secondGrid: { flexDirection: "row", flexWrap: "wrap", gap: 20, marginBottom: 24 },
+        secondGrid: { flexDirection: "row", flexWrap: "wrap", gap: 25, marginBottom: 24 },
         middleColumn: { flex: 1, minWidth: 300, gap: 20 },
         nextDistributionCard: { backgroundColor: "#fff", borderRadius: 16, padding: 20, shadowColor: "#000", shadowOpacity: 0.12, shadowRadius: 8, elevation: 4 },
         alertsCard: { backgroundColor: "#fff", borderRadius: 16, padding: 20, shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 6, elevation: 3 },
@@ -209,20 +209,34 @@ export default function ShopPanel() {
 
             {/* ================= SECOND ROW ================= */}
             <View style={styles.secondGrid}>
-                <View style={styles.cardWide}><Text style={styles.sectionTitle}>Inventory Management</Text><Text style={styles.subText}>Update stock levels or add new products to inventory.</Text></View>
-                <View style={styles.cardWide}>
-                    <Text style={styles.sectionTitle}>Distribution Records</Text>
-                    <Text style={styles.subText}>Track ration distribution history for households.</Text>
-                </View>
-                <View style={styles.cardWide}>
-                    <Text style={styles.sectionTitle}>Shop Analytics</Text>
-                    <Text style={styles.subText}>Daily and weekly performance insights.</Text>
-                </View>
-                <View style={styles.cardWide}>
-                    <Text style={styles.sectionTitle}>User Feedback</Text>
-                    <Text style={styles.subText}>View complaints or send announcements.</Text>
+                <TouchableOpacity>
+                    <View style={styles.cardWide}>
+                        <Text style={styles.sectionTitle}>Inventory Management</Text>
+                        <Text style={styles.subText}>Update stock levels or add new products to inventory.</Text>
+                    </View>
+                </TouchableOpacity>
 
-                </View>
+                <TouchableOpacity>
+                    <View style={styles.cardWide}>
+                        <Text style={styles.sectionTitle}>Distribution Records</Text>
+                        <Text style={styles.subText}>Track ration distribution history for households.</Text>
+                    </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity>
+                    <View style={styles.cardWide}>
+                        <Text style={styles.sectionTitle}>Shop Analytics</Text>
+                        <Text style={styles.subText}>Daily and weekly performance insights.</Text>
+                    </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity onPress={() => router.push("/shopkeeper/Userfeedbackrecord")}>
+                    <View style={styles.cardWide}>
+                        <Text style={styles.sectionTitle}>User Feedback</Text>
+                        <Text style={styles.subText}>View complaints or send announcements.</Text>
+                    </View>
+                </TouchableOpacity>
+
             </View>
 
             {/* ================= BOTTOM ROW ================= */}

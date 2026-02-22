@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { fetchWithAuth } from "../utils/fetchWithAuth";
 
-const API = "http://localhost:8000/api";
+const API = "http://127.0.0.1:8000/api";
 
 export default function AdminManageProducts() {
     const [products, setProducts] = useState([]);
@@ -59,7 +59,12 @@ export default function AdminManageProducts() {
             const res = await fetchWithAuth(url, {
                 method,
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(form)
+                body: JSON.stringify({
+                    ...form,
+                    price: Number(form.price),
+                    quantity: Number(form.quantity),
+                    minStock: Number(form.minStock)
+                })
             });
 
             const data = await res.json();   // 👈 always parse JSON
@@ -78,26 +83,25 @@ export default function AdminManageProducts() {
     };
 
     // DELETE PRODUCT
-    const deleteProduct = (id) => {
-        Alert.alert("Delete", "Are you sure?", [
-            {
-                text: "Yes",
-                onPress: async () => {
-                    try {
-                        const res = await fetchWithAuth(`${API}/products/${id}`, { method: "DELETE" });
-                        const data = await res.json();
-                        console.log("DELETE RESPONSE:", data);
-                        if (!res.ok) throw new Error(data.error || `Delete failed with status ${res.status}`);
-                        Alert.alert("Success", "Product deleted!");
-                        loadProducts();
-                    } catch (err) {
-                        Alert.alert("Error", err.message);
-                        console.log("DELETE ERROR:", err);
-                    }
+    const deleteProduct = async (id) => {
+        try {
+            console.log("Deleting product:", id);
+
+            const res = await fetchWithAuth(
+                `http://localhost:8000/api/products/${id}`,
+                {
+                    method: "DELETE",   // 🔴 THIS LINE IS CRITICAL
                 }
-            },
-            { text: "Cancel" }
-        ]);
+            );
+
+            const data = await res.json();
+            console.log("Delete response:", data);
+
+            loadProducts(); // refresh list
+
+        } catch (err) {
+            console.log("Delete error:", err);
+        }
     };
 
 

@@ -6,7 +6,7 @@ const productSchema = new mongoose.Schema(
     category: { type: String },             // optional, admin-only in routes
     price: { type: Number, required: true },
     quantity: { type: Number, default: 0 },
-    unit: { type: String, default: "kg" },
+    unit: { type: String },
     minStock: { type: Number, default: 0 }, // optional, admin-only in routes
     role: { 
       type: String, 

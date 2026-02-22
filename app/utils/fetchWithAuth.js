@@ -1,46 +1,75 @@
-// app/utils/fetchWithAuth.js
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const API_BASE = "http://192.168.1.5:8000"; // 👈 replace with your LAN IP
+// ⚠️ IMPORTANT: For Expo Web always use 127.0.0.1 not localhost
+const API_BASE = "http://127.0.0.1:8000";
 
 export async function fetchWithAuth(url, options = {}) {
   let token = await AsyncStorage.getItem("accessToken");
+
+  // 🚨 If no token → stop request immediately
+  if (!token) {
+    console.log("❌ No access token found");
+    throw new Error("User not logged in");
+  }
 
   let res = await fetch(url, {
     ...options,
     headers: {
       ...(options.headers || {}),
-      Authorization: `Bearer ${token}`
-    }
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
   });
 
-  if (res.status === 401) {
-    // Try refresh
-    const refreshToken = await AsyncStorage.getItem("refreshToken");
-    const refreshRes = await fetch(`${API_BASE}/api/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken })
-    });
+  // ===============================
+  // 🔴 TOKEN EXPIRED → REFRESH FLOW
+  // ===============================
+  if (res.status === 401 || res.status === 403) {
+    console.log("🔄 Token expired → refreshing...");
 
-    if (refreshRes.ok) {
+    const refreshToken = await AsyncStorage.getItem("refreshToken");
+
+    if (!refreshToken) {
+      await AsyncStorage.multiRemove(["accessToken", "refreshToken", "user"]);
+      throw new Error("Session expired. Please login again.");
+    }
+
+    try {
+      const refreshRes = await fetch(`${API_BASE}/api/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      });
+
+      if (!refreshRes.ok) {
+        throw new Error("Refresh token invalid");
+      }
+
       const data = await refreshRes.json();
+
+      // ✅ Save new tokens
       await AsyncStorage.setItem("accessToken", data.accessToken);
       if (data.refreshToken) {
         await AsyncStorage.setItem("refreshToken", data.refreshToken);
       }
 
-      // Retry original request with new token
-      token = data.accessToken;
+      console.log("✅ Token refreshed");
+
+      // 🔁 Retry original request with new token
       res = await fetch(url, {
         ...options,
         headers: {
           ...(options.headers || {}),
-          Authorization: `Bearer ${token}`
-        }
+          Authorization: `Bearer ${data.accessToken}`,
+          "Content-Type": "application/json",
+        },
       });
-    } else {
-      throw new Error("Session expired, please log in again");
+
+    } catch (err) {
+      console.log("❌ Refresh failed → logout");
+
+      await AsyncStorage.multiRemove(["accessToken", "refreshToken", "user"]);
+      throw new Error("Session expired. Please login again.");
     }
   }
 

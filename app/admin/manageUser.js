@@ -51,9 +51,13 @@ export default function ManageUser({ user: passedUser, onApproveKYC, onEditUser,
 
 
             {/* Header */}
-            <View style={styles.header}>
-                <MaterialCommunityIcons name="account-details" size={26} color="#003366" />
-                <Text style={styles.title}>Manage User</Text>
+            <View style={styles.pageHeader}>
+                <Text style={styles.back}>← Back to Dashboard</Text>
+
+                <Text style={styles.pageTitle}>All Users</Text>
+                <Text style={styles.pageSubtitle}>
+                    Manage registered users, KYC status and accounts
+                </Text>
             </View>
 
             {/* Profile Card */}
@@ -66,9 +70,22 @@ export default function ManageUser({ user: passedUser, onApproveKYC, onEditUser,
                 {user.lastLogin && (
                     <Text style={styles.detail}>🕒 Last Login: {new Date(user.lastLogin).toLocaleString()}</Text>
                 )}
-                <Text style={styles.detail}>
-                    📄 KYC Status: {user.kycStatus === "complete" ? "✅ Complete" : "❌ Incomplete"}
-                </Text>
+                <View style={styles.badgeRow}>
+                    <View style={[
+                        styles.badge,
+                        user.kycStatus === "complete"
+                            ? styles.successBadge
+                            : styles.errorBadge
+                    ]}>
+                        <Text style={styles.badgeText}>
+                            {user.kycStatus === "complete" ? "KYC Complete" : "KYC Pending"}
+                        </Text>
+                    </View>
+
+                    <View style={styles.roleBadge}>
+                        <Text style={styles.badgeText}>{user.role}</Text>
+                    </View>
+                </View>
             </View>
 
             {/* Household Members */}
@@ -85,12 +102,35 @@ export default function ManageUser({ user: passedUser, onApproveKYC, onEditUser,
 
             {/* Ration Balance */}
             <View style={styles.card}>
-                <Text style={styles.sectionTitle}>Ration Balance</Text>
-                <Text style={styles.detail}>🍚 Rice: {user.balance?.rice ?? 0} kg</Text>
-                <Text style={styles.detail}>🌾 Wheat: {user.balance?.wheat ?? 0} kg</Text>
-                <Text style={styles.detail}>🛢️ Oil: {user.balance?.oil ?? 0} L</Text>
-                <Text style={styles.detail}>🍬 Sugar: {user.balance?.sugar ?? 0} kg</Text>
-                <Text style={styles.detail}>📦 Other: {user.balance?.other ?? 0}</Text>
+                <View style={styles.balanceGrid}>
+                    <View style={styles.balanceItem}>
+                        <Text style={styles.balanceIcon}>🍚</Text>
+                        <Text style={styles.balanceValue}>{user.balance?.rice ?? 0}</Text>
+                        <Text style={styles.balanceLabel}>Rice</Text>
+                    </View>
+
+                    <View style={styles.balanceItem}>
+                        <Text style={styles.balanceIcon}>🌾</Text>
+                        <Text style={styles.balanceValue}>{user.balance?.wheat ?? 0}</Text>
+                        <Text style={styles.balanceLabel}>Wheat</Text>
+                    </View>
+
+                    <View style={styles.balanceItem}>
+                        <Text style={styles.balanceIcon}>🛢️</Text>
+                        <Text style={styles.balanceValue}>{user.balance?.oil ?? 0}</Text>
+                        <Text style={styles.balanceLabel}>Oil</Text>
+                    </View>
+                    <View style={styles.balanceItem}>
+                        <Text style={styles.balanceIcon}>🍬</Text>
+                        <Text style={styles.balanceValue}>{user.balance?.sugar ?? 0}</Text>
+                        <Text style={styles.balanceLabel}>Sugar</Text>
+                    </View>
+                    <View style={styles.balanceItem}>
+                        <Text style={styles.balanceIcon}>📦</Text>
+                        <Text style={styles.balanceValue}>{user.balance?.other ?? 0}</Text>
+                        <Text style={styles.balanceLabel}>Other</Text>
+                    </View>
+                </View>
                 {user.lastDistribution && (
                     <Text style={styles.detail}>📅 Last Distribution: {new Date(user.lastDistribution).toLocaleDateString()}</Text>
                 )}
@@ -103,14 +143,19 @@ export default function ManageUser({ user: passedUser, onApproveKYC, onEditUser,
                         <Text style={styles.buttonText}>Approve KYC</Text>
                     </TouchableOpacity>
                 )}
-                <TouchableOpacity style={styles.button} onPress={onEditUser}>
-                    <Text style={styles.buttonText}>Edit User</Text>
+                <TouchableOpacity style={styles.primaryBtn} onPress={onEditUser}>
+                    <MaterialCommunityIcons name="account-edit" size={20} color="#fff" />
+                    <Text style={styles.btnText}>Edit User</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.button} onPress={onResetPassword}>
-                    <Text style={styles.buttonText}>Reset Password</Text>
+
+                <TouchableOpacity style={styles.warningBtn} onPress={onResetPassword}>
+                    <MaterialCommunityIcons name="lock-reset" size={20} color="#fff" />
+                    <Text style={styles.btnText}>Reset Password</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.button, styles.deactivate]} onPress={onDeactivate}>
-                    <Text style={styles.buttonText}>Deactivate Account</Text>
+
+                <TouchableOpacity style={styles.dangerBtn} onPress={onDeactivate}>
+                    <MaterialCommunityIcons name="account-cancel" size={20} color="#fff" />
+                    <Text style={styles.btnText}>Deactivate</Text>
                 </TouchableOpacity>
             </View>
         </ScrollView>
@@ -130,5 +175,129 @@ const styles = StyleSheet.create({
     buttonText: { color: "#fff", fontWeight: "600" },
     deactivate: { backgroundColor: "#B71C1C" },
     centered: { flex: 1, justifyContent: "center", alignItems: "center", padding: 20 },
-    loadingText: { marginTop: 10, fontSize: 16, color: "#666" }
+    loadingText: { marginTop: 10, fontSize: 16, color: "#666" }, headerCard: {
+        backgroundColor: "#003366",
+        padding: 18,
+        borderRadius: 14,
+        flexDirection: "row",
+        alignItems: "center",
+        marginBottom: 18,
+        elevation: 4
+    },
+
+    headerName: {
+        color: "#fff",
+        fontSize: 20,
+        fontWeight: "700"
+    },
+
+    headerEmail: {
+        color: "#E3F2FD",
+        marginTop: 2
+    },
+
+    badgeRow: {
+        flexDirection: "row",
+        gap: 10,
+        marginTop: 10
+    },
+
+    badge: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20
+    },
+
+    successBadge: { backgroundColor: "#2E7D32" },
+    errorBadge: { backgroundColor: "#C62828" },
+
+    roleBadge: {
+        backgroundColor: "#1565C0",
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20
+    },
+
+    badgeText: {
+        color: "#fff",
+        fontWeight: "600",
+        fontSize: 12
+    },
+
+    balanceGrid: {
+        flexDirection: "row",
+        flexWrap: "wrap",        // allows proper alignment
+        justifyContent: "space-between",
+        marginTop: 10,
+    },
+
+
+    balanceItem: {
+        width: "18%",   // 4 cards in one row
+        alignItems: "center",
+        paddingVertical: 15,
+        borderRadius: 12,
+    },
+
+    balanceIcon: { fontSize: 20 },
+    balanceValue: { fontSize: 18, fontWeight: "700", color: "#003366" },
+    balanceLabel: { fontSize: 12, color: "#666" },
+
+    primaryBtn: {
+        backgroundColor: "#003366",
+        flexDirection: "row",
+        justifyContent: "center",
+        alignItems: "center",
+        gap: 8,
+        padding: 14,
+        borderRadius: 10
+    },
+
+    warningBtn: {
+        backgroundColor: "#EF6C00",
+        flexDirection: "row",
+        justifyContent: "center",
+        alignItems: "center",
+        gap: 8,
+        padding: 14,
+        borderRadius: 10
+    },
+
+    dangerBtn: {
+        backgroundColor: "#B71C1C",
+        flexDirection: "row",
+        justifyContent: "center",
+        alignItems: "center",
+        gap: 8,
+        padding: 14,
+        borderRadius: 10
+    },
+
+    btnText: {
+        color: "#fff",
+        fontWeight: "600"
+    },
+    pageHeader: {
+        backgroundColor: "#003366",
+        padding: 20,
+        borderRadius: 16,
+        marginBottom: 20,
+    },
+
+    back: {
+        color: "#BBDEFB",
+        marginBottom: 8,
+        fontSize: 14,
+    },
+
+    pageTitle: {
+        color: "#fff",
+        fontSize: 24,
+        fontWeight: "700",
+    },
+
+    pageSubtitle: {
+        color: "#E3F2FD",
+        marginTop: 4,
+    },
 });

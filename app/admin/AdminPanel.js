@@ -47,7 +47,7 @@ export default function AdminPanel() {
   }, []);
 
   /* ---------------- LOAD DASHBOARD ---------------- */
-  const loadPanel = async () => {
+  const loadPanel = useCallback(async () => {
     try {
       setError(null);
 
@@ -59,6 +59,9 @@ export default function AdminPanel() {
       }
 
       const data = await res.json();
+
+      console.log("STATE SUMMARY:", data.stateSummary); // ✅ ADD HERE
+
       setPanelData(data);
     } catch (err) {
       console.log(err);
@@ -67,7 +70,7 @@ export default function AdminPanel() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
 
   useEffect(() => {
@@ -134,6 +137,11 @@ export default function AdminPanel() {
       </View>
     );
   }
+
+  const maxUsers = Math.max(
+    ...panelData.stateSummary.map(s => s.count),
+    1
+  );
 
   return (
     <ScrollView
@@ -213,6 +221,32 @@ export default function AdminPanel() {
         </Text>
       </View>
 
+      <View style={styles.stateCard}>
+        <Text style={styles.stateTitle}>Users by State</Text>
+
+        {panelData.stateSummary.length === 0 ? (
+          <Text>No state data available</Text>
+        ) : (
+          panelData.stateSummary.map((item, index) => (
+            <View key={index} style={styles.stateRow}>
+              <Text style={styles.stateName}>
+                {item.state || item._id || "Unknown"}
+              </Text>
+              <View style={styles.progressWrapper}>
+                <Progress.Bar
+                  progress={item.count / maxUsers}
+                  width={null}
+                  height={10}
+                  color="#4CAF50"
+                />
+              </View>
+
+              <Text style={styles.stateCount}>{item.count}</Text>
+            </View>
+          ))
+        )}
+      </View>
+
       {/* DASHBOARD GRID */}
       <View style={styles.grid}>
         <Tile icon="people" text="Manage Users" onPress={() => setShowUserGrid(true)} />
@@ -221,7 +255,7 @@ export default function AdminPanel() {
         <Tile icon="feedback" text="Feedback Review" onPress={() => router.push("/admin/feedbackReview")} />
         <Tile icon="history" text="Audit Logs" onPress={() => router.push("/admin/auditLogs")} />
         <Tile icon="bar-chart" text="Analytics" onPress={() => router.push("/admin/analytics")} />
-        <Tile icon="settings" text="System Settings" onPress={() => router.push("/admin/settings")} />
+        <Tile icon="settings" text="System Settings" onPress={() => router.push("/admin/SystemSetting")} />
         <Tile icon="logout" text="Logout" onPress={async () => {
           console.log("Logout pressed");
           await AsyncStorage.multiRemove(["accessToken", "refreshToken", "user"]);
@@ -268,5 +302,44 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 15
   },
-  loginCount: { fontSize: 18, fontWeight: "bold", color: "#1E88E5" }
+  loginCount: { fontSize: 18, fontWeight: "bold", color: "#1E88E5" },
+  stateCard: {
+    backgroundColor: "#fff",
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+    elevation: 3
+  },
+
+  stateTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 15,
+    color: "#003366"
+  },
+
+  stateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12
+  },
+
+  stateName: {
+    width: 90,              // ⭐ FIX
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#000"
+  },
+
+  progressWrapper: {
+    flex: 5,               // ⭐ FIX
+    marginHorizontal: 10
+  },
+
+  stateCount: {
+    flex: 1,               // ⭐ FIX
+    fontWeight: "bold",
+    textAlign: "right",
+    color: "#1E88E5"
+  }
 });
