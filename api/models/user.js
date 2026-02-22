@@ -63,7 +63,8 @@ const userSchema = new mongoose.Schema(
       rice: { type: Number, default: 0 },
       wheat: { type: Number, default: 0 }
     },
-
+    resetPasswordOtp: { type: String },
+    resetPasswordExpires: { type: Date },
 
 
     refreshTokens: [
@@ -75,9 +76,12 @@ const userSchema = new mongoose.Schema(
 
 
 // 🔒 Pre-save hook to hash password automatically
-userSchema.pre("save", async function () {
-  if (!this.isModified("password")) return;
-  this.password = await bcrypt.hash(this.password, 10);
+// In models/user.js
+
+userSchema.pre("save", async function() {
+  if (this.isModified("password")) {
+    this.password = await bcrypt.hash(this.password, 10);
+  }
 });
 
 // 🔑 Method to compare passwords

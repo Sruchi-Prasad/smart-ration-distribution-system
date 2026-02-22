@@ -8,6 +8,8 @@ const generateOTP = require("../utils/otp");
 const LoginModel = require("../models/Login");
 const { getRationEntitlement } = require("../utils/ration");
 const { signAccessToken, signRefreshToken, verifyRefresh, verifyAccess } = require("../utils/jwt");
+const bcrypt = require("bcrypt");
+
 
 // 🔑 Admin seeding
 async function seedAdmin() {
@@ -92,131 +94,210 @@ router.post("/register-shopkeeper", async (req, res) => {
 });
 
 // 🔑 Send OTP (User Aadhaar + Email OR Shopkeeper Email + Phone)
+// 🔑 Send OTP (User Aadhaar + Email OR Shopkeeper Email + Phone)
 router.post("/send-otp", async (req, res) => {
-  const { aadhaar, email, phone } = req.body;
+  try {
+    const { aadhaar, email, phone } = req.body;
 
-  let user;
-  if (aadhaar) {
-    user = await User.findOne({ aadhaarNumber: aadhaar, email, role: "user" });
-  } else {
-    user = await User.findOne({ email, phone, role: "shopkeeper" });
+    if (!email) return res.status(400).json({ success: false, message: "Email is required" });
+
+    let user;
+    if (aadhaar) {
+      user = await User.findOne({ aadhaarNumber: aadhaar, email, role: "user" });
+    } else if (phone) {
+      user = await User.findOne({ email, phone, role: "shopkeeper" });
+    } else {
+      user = await User.findOne({ email }); // fallback
+    }
+
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    const otp = generateOTP(); // 6-digit OTP generator
+    user.resetPasswordOtp = otp;
+    user.resetPasswordExpires = Date.now() + 5 * 60 * 1000; // 5 mins
+    await user.save();
+
+    // Send OTP via email
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+    });
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: "Your OTP Code",
+      text: `Your OTP is ${otp}. It will expire in 5 minutes.`
+    });
+
+    console.log(`OTP for ${email}: ${otp}`);
+    res.json({ success: true, message: "OTP sent to registered email" });
+
+  } catch (err) {
+    console.error("Send OTP error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
   }
-
-  if (!user) return res.status(404).json({ success: false, message: "User not found" });
-
-  const otp = generateOTP();
-  req.session.otp = otp;
-  req.session.otpExpires = Date.now() + 5 * 60 * 1000;
-  req.session.userId = user._id;
-
-  let transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
-  });
-
-  await transporter.sendMail({
-    from: process.env.EMAIL_USER,
-    to: email,
-    subject: "Your OTP Code",
-    text: `Your OTP is ${otp}. It will expire in 5 minutes.`
-  });
-
-  console.log(`Dummy OTP for ${email}: ${otp}`);
-  res.json({ success: true, message: "OTP sent to registered email" });
 });
 
 // 🔑 Verify OTP
 router.post("/verify-otp", async (req, res) => {
-  const { otp } = req.body;
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) return res.status(400).json({ message: "Email and OTP required" });
 
-  if (!req.session.otp || Date.now() > req.session.otpExpires) {
-    return res.status(401).json({ success: false, message: "OTP expired" });
-  }
+    const user = await User.findOne({ email, resetPasswordOtp: otp });
+    if (!user || Date.now() > user.resetPasswordExpires) {
+      return res.status(401).json({ message: "Invalid or expired OTP" });
+    }
 
-  if (parseInt(otp) === req.session.otp) {
-    const user = await User.findById(req.session.userId);
+    // Clear OTP fields
+    user.resetPasswordOtp = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
 
+    // Issue JWT tokens after OTP verification
     const accessToken = signAccessToken(user);
     const jti = crypto.randomUUID();
     const refreshToken = signRefreshToken(user, jti);
+    if (!user.refreshTokens) user.refreshTokens = [];
+    user.refreshTokens.push({ token: refreshToken });
+    await user.save();
+
+    res.json({ success: true, message: "Authentication successful", user, accessToken, refreshToken });
+  } catch (err) {
+    console.error("Verify OTP error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+// 🔑 Password Login
+// 🔑 Password Login
+router.post("/login", async (req, res) => {
+  try {
+    const { email, password, role } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
+
+    // Fetch user by email
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ message: "User not registered" });
+
+    // Optional: check role if provided
+    if (role && user.role !== role) {
+      return res.status(400).json({ message: `User not registered with role ${role}` });
+    }
+
+    // Compare password (plain text from frontend with hashed password in DB)
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
+
+    // Update last login & balance (for users)
+    user.lastLogin = new Date();
+    if (user.role === "user") {
+      user.balance = getRationEntitlement(user.state, user.members, user.role);
+    }
+    await user.save();
+
+    // Generate tokens
+    const accessToken = signAccessToken(user);
+    const refreshToken = signRefreshToken(user, crypto.randomUUID());
 
     if (!user.refreshTokens) user.refreshTokens = [];
     user.refreshTokens.push({ token: refreshToken });
     await user.save();
 
-    return res.json({ success: true, message: "Authentication successful", user, accessToken, refreshToken });
-  } else {
-    return res.status(401).json({ success: false, message: "Invalid OTP" });
+    // Record login event
+    await LoginModel.create({
+      username: user.email,
+      ipAddress: req.ip
+    });
+
+    res.status(200).json({ message: "Login successful", user, accessToken, refreshToken });
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
-// 🔑 Password Login
-// 🔑 Password Login
-router.post("/login", async (req, res) => {
-  const { email, password, role } = req.body;
-  const user = await User.findOne({ email, role });
-  if (!user) return res.status(400).json({ message: "User not registered with this role" });
-
-  const isMatch = await user.comparePassword(password);
-  if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
-
-  user.lastLogin = new Date();
-  if (user.role === "user") {
-    user.balance = getRationEntitlement(user.state, user.members, user.role);
-  }
-  await user.save();
-
-  const accessToken = signAccessToken(user);
-  const jti = crypto.randomUUID();
-  const refreshToken = signRefreshToken(user, jti);
-
-  if (!user.refreshTokens) user.refreshTokens = [];
-  user.refreshTokens.push({ token: refreshToken });
-  await user.save();
-
-  // ✅ Record login event in MongoDB
-  await LoginModel.create({
-    username: user.email,   // or user.fullName
-    ipAddress: req.ip
-  });
-
-  res.status(200).json({ message: "Login successful", user, accessToken, refreshToken });
-});
-
-
-// 🔄 Refresh
-router.post("/refresh", async (req, res) => {
-  const { refreshToken } = req.body;
-  if (!refreshToken) return res.status(400).json({ message: "Missing token" });
-
-  let payload;
+// 🔑 Forgot Password (Request OTP)
+router.post("/forgot-password", async (req, res) => {
   try {
-    payload = verifyRefresh(refreshToken);
-  } catch {
-    return res.status(401).json({ message: "Invalid refresh token" });
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "Email required" });
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit
+    user.resetPasswordOtp = otp;
+    user.resetPasswordExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    await user.save();
+
+    console.log(`Forgot password OTP for ${email}: ${otp}`);
+
+    res.json({ success: true, message: "OTP sent to email" });
+  } catch (err) {
+    console.error("Forgot password error:", err);
+    res.status(500).json({ message: "Server error" });
   }
+});
 
-  const user = await User.findById(payload.sub);
-  if (!user) return res.status(401).json({ message: "User not found" });
+// 🔑 Reset Password
+router.post("/reset-password", async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword) return res.status(400).json({ message: "All fields required" });
 
-  const stored = user.refreshTokens.find(rt => rt.token === refreshToken && !rt.revokedAt);
-  if (!stored) return res.status(401).json({ message: "Token revoked or not found" });
+    const user = await User.findOne({ email, resetPasswordOtp: otp });
+    if (!user || Date.now() > user.resetPasswordExpires) {
+      return res.status(400).json({ message: "Invalid or expired OTP" });
+    }
 
-  stored.revokedAt = new Date();
-  const newAccessToken = signAccessToken(user);
-  const newRefreshToken = signRefreshToken(user, crypto.randomUUID());
-  user.refreshTokens.push({ token: newRefreshToken });
-  await user.save();
+    user.password = newPassword; // plain → hashed automatically by pre-save
+    user.resetPasswordOtp = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
 
-  res.json({ user, accessToken: newAccessToken, refreshToken: newRefreshToken });
+    res.json({ success: true, message: "Password reset successful" });
+  } catch (err) {
+    console.error("Reset password error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// 🔄 Refresh Tokens
+router.post("/refresh", async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) return res.status(400).json({ message: "Missing token" });
+
+    const payload = verifyRefresh(refreshToken);
+    const user = await User.findById(payload.sub);
+    if (!user) return res.status(401).json({ message: "User not found" });
+
+    const stored = user.refreshTokens.find(rt => rt.token === refreshToken && !rt.revokedAt);
+    if (!stored) return res.status(401).json({ message: "Token revoked or not found" });
+
+    stored.revokedAt = new Date();
+    const newAccessToken = signAccessToken(user);
+    const newRefreshToken = signRefreshToken(user, crypto.randomUUID());
+    user.refreshTokens.push({ token: newRefreshToken });
+    await user.save();
+
+    res.json({ user, accessToken: newAccessToken, refreshToken: newRefreshToken });
+  } catch (err) {
+    console.error("Refresh token error:", err);
+    res.status(401).json({ message: "Invalid refresh token" });
+  }
 });
 
 // 🚪 Logout
 router.post("/logout", async (req, res) => {
-  const { refreshToken } = req.body;
-  if (!refreshToken) return res.status(400).json({ message: "Missing token" });
-
   try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) return res.status(400).json({ message: "Missing token" });
+
     const payload = verifyRefresh(refreshToken);
     const user = await User.findById(payload.sub);
     if (!user) return res.status(200).json({ message: "Logged out" });

@@ -15,7 +15,7 @@ const loginsRoute = require("./routes/logins");
 const feedbackRoutes = require("./routes/feedback");
 const User = require("./models/user");
 const auditRoutes = require("./routes/auditLog");
-
+const shopsRouter = require("./routes/shops");
 const app = express();
 const port = process.env.PORT || 8000;
 
@@ -66,6 +66,7 @@ app.use("/api/products", productRoutes);
 app.use("/api", loginsRoute);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/audit", auditRoutes);
+app.use("/api/shops", shopsRouter);
 
 // ============================
 // ✅ ADMIN DASHBOARD STATS
