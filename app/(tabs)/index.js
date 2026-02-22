@@ -17,8 +17,59 @@ import {
   useWindowDimensions,
   View
 } from "react-native";
+import RationCard from "../(tabs)/RationCard";
+
 
 const Index = () => {
+
+  const [expandedSections, setExpandedSections] = useState([]);
+  const DropdownSection = ({ title, sectionKey, items, expandedSections, setExpandedSections }) => {
+    const isExpanded = expandedSections.includes(sectionKey);
+
+    const toggleSection = () => {
+      if (isExpanded) {
+        setExpandedSections(expandedSections.filter(key => key !== sectionKey));
+      } else {
+        setExpandedSections([...expandedSections, sectionKey]);
+      }
+    };
+
+    return (
+      <View style={{ marginBottom: 16 }}>
+        <TouchableOpacity
+          onPress={toggleSection}
+          style={{
+            backgroundColor: "#003366",
+            padding: 12,
+            borderRadius: 8,
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <Text style={{ color: "white", fontWeight: "700", fontSize: 16 }}>{title}</Text>
+          <Entypo name={isExpanded ? "chevron-up" : "chevron-down"} size={20} color="white" />
+        </TouchableOpacity>
+
+        {isExpanded && (
+          <View style={{ marginTop: 10 }}>
+            {items.map((item, index) => (
+              <Pressable
+                key={index}
+                style={[styles.portalButton, { backgroundColor: item.color }]}
+                onPress={() => router.push(item.route)}
+              >
+                <View style={styles.portalIcon}>{item.icon}</View>
+                <Text style={styles.portalText}>{item.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+
   const router = useRouter();
 
   const { width } = useWindowDimensions();
@@ -41,24 +92,34 @@ const Index = () => {
     },
   ];
 
+  const notifications = [
+    "Next distribution starts on 20 Jan 2026  ",
+    "New ration policy update released  ",
+    "KYC verification deadline: 25 Jan 2026  ",
+    "Rice stock available from tomorrow",
+  ];
+
+  const tickerText = notifications.join("   ✦   ") + "   ✦   ";
+  const scrollX = useState(new Animated.Value(0))[0];
+
   // load user from AsyncStorage
   useEffect(() => {
-  const loadUser = async () => {
-    const storedUser = await AsyncStorage.getItem("user");
-    if (storedUser) {
-      const parsedUser = JSON.parse(storedUser);
-      setUser(parsedUser);
+    const loadUser = async () => {
+      const storedUser = await AsyncStorage.getItem("user");
+      if (storedUser) {
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
 
-      // Redirect based on role
-     {/* if (parsedUser.role === "shopkeeper") {
+        // Redirect based on role
+        {/* if (parsedUser.role === "shopkeeper") {
         router.replace("/shopkeeper/ShopPanel");
       } else if (parsedUser.role === "user") {
         router.replace("/");
       }*/}
-    }
-  };
-  loadUser();
-}, []);
+      }
+    };
+    loadUser();
+  }, []);
 
   // slideshow auto-advance
   useEffect(() => {
@@ -96,6 +157,25 @@ const Index = () => {
     }
   };
 
+ useEffect(() => {
+  const screenWidth = Dimensions.get("window").width;
+
+  Animated.loop(
+    Animated.sequence([
+      Animated.timing(scrollX, {
+        toValue: -screenWidth,
+        duration: 12000,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scrollX, {
+        toValue: screenWidth,
+        duration: 0,
+        useNativeDriver: true,
+      }),
+    ])
+  ).start();
+}, []);
+
   return (
 
     <SafeAreaView style={{ flex: 1 }}>
@@ -108,8 +188,8 @@ const Index = () => {
           minHeight: "100vh",         // ✅ full screen height
           paddingHorizontal: 16,      // ✅ optional side padding
         }}
-      >  
-       
+      >
+
         <View style={styles.header}>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
             <Image
@@ -150,14 +230,42 @@ const Index = () => {
 
         <View style={styles.banner}>
           <Entypo name="bell" size={20} color="white" style={{ marginRight: 8 }} />
-          <Text style={{ color: "white", fontWeight: "bold" }}>
-            NOTIFICATIONS: Next distribution starts on 20 Jan 2026
-          </Text>
+
+          <View style={{ flex: 1, overflow: "hidden" }}>
+            <Animated.View
+              style={{
+                flexDirection: "row",
+                transform: [{ translateX: scrollX }],
+              }}
+            >
+              <Text
+                style={{
+                  color: "white",
+                  fontWeight: "bold",
+                  fontSize: 16,
+                  marginRight: 60,
+                  whiteSpace: "nowrap",   // ⭐ MOST IMPORTANT FIX
+                }}
+              >
+                {tickerText}
+              </Text>
+
+              <Text
+                style={{
+                  color: "white",
+                  fontWeight: "bold",
+                  fontSize: 16,
+                  marginRight: 60,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {tickerText}
+              </Text>
+            </Animated.View>
+          </View>
         </View>
 
-
-       
-
+        <RationCard />
 
         <View style={styles.mainContainer}>
 
@@ -171,62 +279,61 @@ const Index = () => {
             gap: 24,
             minHeight: "100vh",
           }} >
+            <View style={{ width: isMobile ? "100%" : "28%", paddingHorizontal: 10 }}>
+              <View style={{ flexDirection: "column", gap: 20, marginVertical: 20 }}>
+                <DropdownSection
+                  title="Your Ration Info"
+                  sectionKey="info"
+                  expandedSections={expandedSections}
+                  setExpandedSections={setExpandedSections}
+                  items={[
+                    { label: "RATION BALANCE", icon: <MaterialCommunityIcons name="scale-balance" size={24} color="white" />, color: "#6A1B9A", route: "/balance" },
+                    { label: "DISTRIBUTION HISTORY", icon: <MaterialIcons name="history" size={24} color="white" />, color: "#0288D1", route: "/history" },
+                  ]}
+                />
 
+                <DropdownSection
+                  title="Actions & Requests"
+                  sectionKey="actions"
+                  expandedSections={expandedSections}
+                  setExpandedSections={setExpandedSections}
+                  items={[
+                    { label: "GIVE FEEDBACK", icon: <MaterialIcons name="feedback" size={24} color="white" />, color: "#F57C00", route: "/feedback" },
+                    { label: "KYC DETAIL", icon: <FontAwesome name="id-card" size={24} color="white" />, color: "#00796B", route: "/kyc" },
+                  ]}
+                />
 
-            <View style={{ width: isMobile ? "100%" : "25%", paddingHorizontal: 10, gap: 16 }}>        {[
-              {
-                label: "NEXT DISTRIBUTION",
-                icon: <Entypo name="calendar" size={24} color="white" />,
-                color: "#1E88E5",
-              },
-              {
-                label: "GIVE FEEDBACK",
-                icon: <MaterialIcons name="feedback" size={24} color="white" />,
-                color: "#F57C00",
-              },
-              {
-                label: "MEMBERS Detail",
-                icon: <FontAwesome5 name="users" size={24} color="white" />,
-                color: "#00796B",
-              },
-              {
-                label: "PRODUCT DETAIL",
-                icon: (
-                  <MaterialCommunityIcons
-                    name="package-variant"
-                    size={24}
-                    color="white"
-                  />
-                ),
-                color: "#388E3C",
-              },
-            ].map((item, index) => (
-              <Pressable
-                key={index}
-                style={[
-                  styles.portalButton,
-                  {
-                    backgroundColor: item.color,
-                    alignSelf: isMobile ? "stretch" : "center",
-                  },
-                ]}
-                onPress={() => {
-                  if (item.label === "PRODUCT DETAIL") router.push("/productDetail");
-                  if (item.label === "NEXT DISTRIBUTION") router.push("/distribution");
-                  if (item.label === "MEMBERS Detail") router.push("/members");
-                  if (item.label === "GIVE FEEDBACK") router.push("/feedback");
-                }}
-              >
-                <View style={styles.portalIcon}>{item.icon}</View>
-                <Text style={styles.portalText}>{item.label}</Text>
-              </Pressable>
-            ))}
+                <DropdownSection
+                  title="Household & Products"
+                  sectionKey="household"
+                  expandedSections={expandedSections}
+                  setExpandedSections={setExpandedSections}
+                  items={[
+                    { label: "MEMBERS DETAIL", icon: <FontAwesome5 name="users" size={24} color="white" />, color: "#1E88E5", route: "/members" },
+                    { label: "PRODUCT DETAIL", icon: <MaterialCommunityIcons name="package-variant" size={24} color="white" />, color: "#388E3C", route: "/productDetail" },
+                    { label: "ANNOUNCEMENTS", icon: <Entypo name="megaphone" size={24} color="white" />, color: "#C2185B", route: "/announcements" },
+                  ]}
+                />
+
+                <DropdownSection
+                  title="Profile & Tools"
+                  sectionKey="tools"
+                  expandedSections={expandedSections}
+                  setExpandedSections={setExpandedSections}
+                  items={[
+                    { label: "CARD DETAIL", icon: <FontAwesome name="id-card" size={24} color="white" />, color: "#388E3C", route: "/card" },
+                    { label: "REPORT ISSUE", icon: <MaterialIcons name="report" size={24} color="white" />, color: "#C2185B", route: "/report" },
+                    { label: "QR CODE", icon: <MaterialCommunityIcons name="qrcode" size={24} color="white" />, color: "#6A1B9A", route: "/qr" },
+                  ]}
+                />
+              </View>
+
             </View>
 
-    
-            <View style={{ width: isMobile ? "100%" : "45%", paddingHorizontal: 10}}>     <Text style={styles.galleryTitle}>
-              Public Distribution System (PDS) Scenes
-            </Text>
+            <View style={{ width: isMobile ? "100%" : "42%", paddingHorizontal: 10 }}>
+              <Text style={styles.galleryTitle}>
+                Public Distribution System (PDS) Scenes
+              </Text>
               <View style={styles.imageCard}>
                 <Image
                   source={pdsImages[currentIndex].source}
@@ -237,41 +344,41 @@ const Index = () => {
                 </Text>
               </View>
             </View>
+            <View style={{ width: isMobile ? "100%" : "28%", paddingHorizontal: 10, gap: 16 }}>
+              {/* Digital Ration Card */}
+              <View style={styles.card1}>
+                <Text style={styles.optionText}>Digital Ration Card</Text>
+                <Text style={styles.detailText}>Household ID: MH-2026-00123</Text>
+                <Text style={styles.detailText}>Members: 4</Text>
+                <Text style={styles.detailText}>Valid Till: Dec 2026</Text>
+                <View style={{ marginTop: 10, alignItems: "center" }}>
+                  <MaterialCommunityIcons name="qrcode" size={48} color="#003366" />
+                </View>
+              </View>
 
-            <View style={{ width: isMobile ? "100%" : "25%", paddingHorizontal: 10, gap: 16 }}>
-              <View style={{ flexDirection: "column", gap: 16, width: "100%" }}>
-                <Pressable style={styles.card1} onPress={() => router.push("/kyc")}>
-                  <View style={styles.iconCircle}>
-                    <FontAwesome name="id-card" size={28} color="black" />
-                  </View>
-                  <Text style={styles.label}>KYC Detail</Text>
-                </Pressable>
+              {/* Distribution Timeline */}
+              <View style={styles.card1}>
+                <Text style={styles.optionText}>Distribution Timeline</Text>
+                <Text style={styles.detailText}>Last Pickup: 15 Jan 2026</Text>
+                <Text style={styles.detailText}>Next Pickup: 20 Jan 2026</Text>
+                <Text style={styles.detailText}>Missed: None</Text>
+              </View>
 
-                <Pressable style={styles.card1} onPress={() => router.push("/card")}>
-                  <View style={styles.iconCircle}>
-                    <FontAwesome name="id-card" size={28} color="black" />
-                  </View>
-                  <Text style={styles.label}>Card Detail</Text>
-                </Pressable>
-
-                <Pressable style={styles.card1} onPress={()=>router.push("/report")}>
-                  <View style={styles.iconCircle}>
-                    <MaterialIcons name="report" size={28} color="black" />
-                  </View>
-                  <Text style={styles.label}>Report Issue</Text>
-                </Pressable>
-
-                <Pressable style={styles.card1}>
-                  <View style={styles.iconCircle}>
-                    <MaterialCommunityIcons name="qrcode" size={28} color="black" />
-                  </View>
-                  <Text style={styles.label}>QR Code</Text>
-                </Pressable>
+              {/* Support & Help */}
+              <View style={styles.card1}>
+                <Text style={styles.optionText}>Need Help?</Text>
+                <Text style={styles.detailText}>📞 Call: 1800-XYZ-RATION</Text>
+                <Text style={styles.detailText}>📧 Email: support@ration.gov.in</Text>
+                <TouchableOpacity style={{ marginTop: 10 }}>
+                  <Text style={{ color: "#00796B", fontWeight: "600" }}>Raise a Ticket →</Text>
+                </TouchableOpacity>
               </View>
             </View>
+
           </View>
         </View>
-        
+
+
         {visible && (
           <Animated.View style={[styles.popup, { transform: [{ translateX: slideAnim }] }]}>
             <View style={styles.profileRow}>
@@ -323,7 +430,6 @@ const Index = () => {
           </View>
         )}
 
-        
 
       </ScrollView>
     </SafeAreaView>
@@ -370,7 +476,7 @@ const styles = StyleSheet.create({
 
   imageCard: {
     width: "100%",
-    maxWidth: 600,
+    maxWidth: 700,
     borderRadius: 8,
     overflow: "hidden",
     backgroundColor: "#f0f0f0",
@@ -395,7 +501,7 @@ const styles = StyleSheet.create({
 
   imageCaption: {
     padding: 6,
-    fontSize: 14,
+    fontSize: 16,
     textAlign: "center",
     color: "#333",
   }
@@ -446,7 +552,7 @@ const styles = StyleSheet.create({
   },
   card1: {
     width: "100%",
-    backgroundColor: "#C5E1A5", // muted institutional green
+    backgroundColor: "#ea8d0b", // muted institutional green
     borderRadius: 6,
     paddingVertical: 20,
     alignItems: "center",
@@ -483,6 +589,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginTop: 20,
+    flexDirection: "column",
+    gap: 20,
+    marginVertical: 20,
+
   }
   ,
   dropdownItem: {
@@ -587,6 +697,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 3,
     elevation: 3,
-  }
+  },
+  sectionHeader: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#003366",
+    marginBottom: 8,
+    marginTop: 12,
+  },
 
 });

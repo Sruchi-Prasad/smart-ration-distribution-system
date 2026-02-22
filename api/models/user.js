@@ -8,6 +8,11 @@ const userSchema = new mongoose.Schema(
       type: Date,
       required: function () { return this.role === "user"; }
     },
+    kycStatus: {
+      type: String,
+      enum: ["Pending", "Verified", "Rejected"],
+      default: "Pending"
+    },
 
     rationCard: {
       type: String,

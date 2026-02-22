@@ -10,6 +10,8 @@ export default function QuickActionsCard() {
     { label: "REPORT ISSUE", route: "/report" },
     { label: "QR CODE", route: "/qrcode" },
     { label: "MEMBERS DETAIL", route: "/(tabs)/members" },
+    { label: "MANAGE PRODUCTS", route: "/admin/manageProduct"}                     
+
   ];
 
   return (

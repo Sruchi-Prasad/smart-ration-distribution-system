@@ -5,6 +5,7 @@ const crypto = require("crypto");
 const User = require("../models/user");
 const nodemailer = require("nodemailer");
 const generateOTP = require("../utils/otp");
+const LoginModel = require("../models/Login");
 const { getRationEntitlement } = require("../utils/ration");
 const { signAccessToken, signRefreshToken, verifyRefresh, verifyAccess } = require("../utils/jwt");
 
@@ -31,7 +32,7 @@ async function seedAdmin() {
 // 📝 User Registration
 router.post("/register", async (req, res) => {
   try {
-    const { fullName, email, country, city, phone, aadhaarNumber, password, role, state, members, dateOfBirth, rationCard ,memberDetails} = req.body;
+    const { fullName, email, country, city, phone, aadhaarNumber, password, role, state, members, dateOfBirth, rationCard, memberDetails } = req.body;
 
     if (role === "user") {
       if (!state) return res.status(400).json({ message: "State is required for users" });
@@ -46,7 +47,7 @@ router.post("/register", async (req, res) => {
     }
 
 
-    const newUser = new User({ fullName, email, aadhaarNumber, password, role, state, members, rationCard, country, phone, city, dateOfBirth,memberDetails });
+    const newUser = new User({ fullName, email, aadhaarNumber, password, role, state, members, rationCard, country, phone, city, dateOfBirth, memberDetails });
 
     if (role === "user") {
       newUser.balance = getRationEntitlement(state, members, role);
@@ -150,6 +151,7 @@ router.post("/verify-otp", async (req, res) => {
 });
 
 // 🔑 Password Login
+// 🔑 Password Login
 router.post("/login", async (req, res) => {
   const { email, password, role } = req.body;
   const user = await User.findOne({ email, role });
@@ -172,8 +174,15 @@ router.post("/login", async (req, res) => {
   user.refreshTokens.push({ token: refreshToken });
   await user.save();
 
+  // ✅ Record login event in MongoDB
+  await LoginModel.create({
+    username: user.email,   // or user.fullName
+    ipAddress: req.ip
+  });
+
   res.status(200).json({ message: "Login successful", user, accessToken, refreshToken });
 });
+
 
 // 🔄 Refresh
 router.post("/refresh", async (req, res) => {
@@ -224,6 +233,7 @@ router.post("/logout", async (req, res) => {
 
 
 
+
 router.get("/admin/panel", requireAuth, requireAdmin, async (req, res) => {
   try {
     // Existing counts
@@ -232,7 +242,7 @@ router.get("/admin/panel", requireAuth, requireAdmin, async (req, res) => {
 
     // New queries
     const recentLogins = await User.find({
-      lastLogin: { $gte: new Date(Date.now() - 7*24*60*60*1000) }
+      lastLogin: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
     });
 
     const distributedUsers = await User.countDocuments({ lastDistribution: { $ne: null } });
@@ -254,7 +264,25 @@ router.get("/admin/panel", requireAuth, requireAdmin, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+// 📝 Get user by ID
+router.get("/user/:id", requireAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    console.log("Fetched user from DB:", user);
+    if (!user) return res.status(404).json({ message: "User not found" });
 
+    // Add computed fields if needed
+    const userData = {
+      ...user.toObject(),
+      cardType: "BPL (Priority)",   // or compute based on rationCard/state
+      status: "Active"              // or compute based on rationCard existence
+    };
+
+    res.json(userData);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
 
 module.exports = { router, seedAdmin };

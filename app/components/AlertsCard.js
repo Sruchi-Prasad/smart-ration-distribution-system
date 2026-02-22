@@ -14,6 +14,6 @@ export default function AlertsCard({ logs }) {
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: "#fff", padding: 16, borderRadius: 10, marginBottom: 20 },
+  card: { backgroundColor: "#fff", padding: 20, borderRadius: 16, marginBottom: 20 },
   sectionTitle: { fontWeight: "bold", marginBottom: 8, color: "#003366" },
 });

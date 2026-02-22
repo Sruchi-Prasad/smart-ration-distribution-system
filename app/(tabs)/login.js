@@ -133,8 +133,11 @@ export default function Login() {
 
         // Delay navigation slightly so popup is visible
         setTimeout(() => {
+          // Inside handleVerifyOtp
           if (data.user.role === "admin") {
             router.push("/admin/AdminPanel");
+          } else if (data.user.role === "shopkeeper") {
+            router.push("/shopkeeper/ShopPanel");
           } else {
             router.push("/(tabs)/profile");
           }

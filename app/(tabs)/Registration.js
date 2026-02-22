@@ -65,11 +65,15 @@ export default function Registration() {
     let body = {};
 
     if (role === "user") {
+      if (!rationCard.trim()) {
+        Alert.alert("Error", "Ration Card Number is required");
+        return;
+      }
       if (!/^\d{12}$/.test(aadhaarNumber)) {
         Alert.alert("Error", "Aadhaar number must be 12 digits");
         return;
       }
-      url = "http://127.0.0.1:8000/api/auth/register";
+      url = "http://localhost:8000/api/auth/register";
       body = {
         fullName,
         rationCard,
@@ -82,15 +86,16 @@ export default function Registration() {
         city,
         password,
         dateOfBirth: new Date(dateOfBirth),
-        memberDetails, // ✅ include details array // ✅ convert to Date
+        memberDetails,
         role,
-      }
-    } else if (role === "shopkeeper") {
+      };
+    }
+    else if (role === "shopkeeper") {
       if (!shopName.trim()) {
         Alert.alert("Error", "Shop name is required for shopkeepers");
         return;
       }
-      url = "http://127.0.0.1:8000/api/auth/register-shopkeeper";
+      url = "http://localhost:8000/api/auth/register-shopkeeper";
       body = {
         fullName,
         email,
