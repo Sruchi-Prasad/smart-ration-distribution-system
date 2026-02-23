@@ -55,6 +55,7 @@ export default function Login() {
       if (res.status === 200 && data.user) {
         Toast.show({ type: "success", text1: "Login Successful ✅" });
         await AsyncStorage.setItem("user", JSON.stringify(data.user));
+        await AsyncStorage.setItem("userId", data.user._id);
         await AsyncStorage.setItem("accessToken", data.accessToken);
         await AsyncStorage.setItem("refreshToken", data.refreshToken);
 

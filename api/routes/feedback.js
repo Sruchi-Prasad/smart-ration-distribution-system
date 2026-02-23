@@ -43,4 +43,19 @@ router.get("/shop/:shopId", async (req, res) => {
   }
 });
 
+// ✅ GET ALL FEEDBACK (ADMIN)
+router.get("/all", async (req, res) => {
+  try {
+    const feedbacks = await Feedback.find()
+      .populate("shop", "shopName email") // show shop info
+      .populate("user", "name email")     // show user info
+      .sort({ createdAt: -1 });
+
+    res.json(feedbacks);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 module.exports = router;

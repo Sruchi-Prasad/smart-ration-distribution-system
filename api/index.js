@@ -67,6 +67,8 @@ app.use("/api", loginsRoute);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/audit", auditRoutes);
 app.use("/api/shops", shopsRouter);
+app.use("/api/analytics", require("./routes/analytics"));
+app.use("/api/feedback", require("./routes/feedback"));
 
 // ============================
 // ✅ ADMIN DASHBOARD STATS
