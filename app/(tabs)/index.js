@@ -137,7 +137,7 @@ const Index = () => {
 
         {/* TICKER */}
         <View style={styles.tickerBanner}>
-          <MaterialIcons name="campaign" size={20} color="white" />
+          <MaterialIcons name="campaign" size={24} color="white" />
           <View style={styles.tickerOverflow}>
             <Animated.View style={{ flexDirection: "row", flexWrap: "nowrap", transform: [{ translateX: scrollX }] }}>
               <Text style={styles.tickerText}>{tickerText}</Text>

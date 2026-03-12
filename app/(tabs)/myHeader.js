@@ -49,13 +49,15 @@ export default function MyHeader() {
         }).start();
     };
 
+    const insets = useSafeAreaInsets();
+
     const handleLogout = async () => {
         await logout();
         setVisible(false);
     };
 
     return (
-        <View style={styles.headerContainer}>
+        <View style={[styles.headerContainer, { paddingTop: insets.top }]}>
             <View style={styles.header}>
                 {/* Left: Logo + Title */}
                 <View style={styles.leftHeader}>
@@ -63,8 +65,8 @@ export default function MyHeader() {
                         source={require("../../assets/images/emblem.png")}
                         style={styles.logo}
                     />
-                    <Text style={[styles.title, { fontSize: isMobile ? 12 : 18 }]}>
-                        SMART RATION DISTRIBUTION SYSTEM
+                    <Text style={[styles.title, { fontSize: isMobile ? 12 : 18 }]} numberOfLines={1}>
+                        {isMobile ? "SMART RATION" : "SMART RATION DISTRIBUTION SYSTEM"}
                     </Text>
                 </View>
 
@@ -167,7 +169,7 @@ const styles = StyleSheet.create({
     rightHeader: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 16,
+        gap: isMobile ? 8 : 16,
     },
     logo: {
         width: 42,
