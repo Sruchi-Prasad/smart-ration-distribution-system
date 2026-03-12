@@ -8,6 +8,7 @@ import {
     Image,
     Pressable,
     StyleSheet,
+    Text,
     useWindowDimensions,
     View
 } from "react-native";

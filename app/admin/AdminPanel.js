@@ -3,7 +3,9 @@ import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -82,20 +84,39 @@ export default function AdminPanel() {
 
   /* ---------------- BLAST KYC REMINDER ---------------- */
   const blastKycReminder = async () => {
-    const confirmed = confirm(
-      "This will send an email AND in-app notification to ALL users with pending KYC. Continue?"
-    );
-    if (!confirmed) return;
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm("This will send an email AND in-app notification to ALL users with pending KYC. Continue?");
+      if (!confirmed) return;
+      executeBlast();
+    } else {
+      Alert.alert(
+        "Blast KYC Reminder",
+        "This will send an email AND in-app notification to ALL users with pending KYC. Continue?",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Continue", onPress: executeBlast }
+        ]
+      );
+    }
+  };
+
+  const executeBlast = async () => {
 
     try {
       setBlastLoading(true);
       const res = await fetchWithAuth(`${API_BASE}/api/auth/send-kyc-reminder`, { method: "POST" });
       const data = await res.json();
-      alert(
-        `✅ KYC Reminder Sent!\n\nIn-app notifications: ${data.notificationsSaved}\nEmails sent: ${data.emailsSent}\nSkipped (rate-limit): ${data.skippedRateLimit}`
-      );
+      if (Platform.OS === 'web') {
+        alert(`✅ KYC Reminder Sent!\n\nIn-app notifications: ${data.notificationsSaved}\nEmails sent: ${data.emailsSent}\nSkipped (rate-limit): ${data.skippedRateLimit}`);
+      } else {
+        Alert.alert("Success", `✅ KYC Reminder Sent!\n\nNotifications: ${data.notificationsSaved}\nEmails: ${data.emailsSent}`);
+      }
     } catch (err) {
-      alert("❌ Failed to blast reminder. Please try again.");
+      if (Platform.OS === 'web') {
+        alert("❌ Failed to blast reminder. Please try again.");
+      } else {
+        Alert.alert("Error", "❌ Failed to blast reminder.");
+      }
     } finally {
       setBlastLoading(false);
     }
