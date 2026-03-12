@@ -20,7 +20,15 @@ export default function RationCard() {
     const fetchUser = async () => {
       try {
         const storedUser = await AsyncStorage.getItem("user");
-        const parsedUser = JSON.parse(await AsyncStorage.getItem("user"));
+        if (!storedUser) {
+          setLoading(false);
+          return;
+        }
+        const parsedUser = JSON.parse(storedUser);
+        if (!parsedUser?._id) {
+          setLoading(false);
+          return;
+        }
         const res = await fetchWithAuth(`${API_BASE}/api/auth/user/${parsedUser._id}`);
 
 

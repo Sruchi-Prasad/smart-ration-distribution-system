@@ -1,8 +1,8 @@
 import { Stack } from "expo-router";
 import { View } from "react-native";
 import Toast from "react-native-toast-message";
-import FooterNav from "./myFooter"; // adjust path if needed
-import MyHeader from "./myHeader";
+import FooterNav from "../components/Footer";
+import MyHeader from "../components/Header";
 
 export default function Layout() {
   return (

@@ -30,7 +30,11 @@ export const logoutUser = async (router) => {
         console.log("✅ User logged out successfully");
 
         // Redirect to login (assuming (tabs)/login is the standard route)
-        router.replace("/(tabs)/login");
+        if (router && typeof router.replace === 'function') {
+            router.replace("/(tabs)/login");
+        } else {
+            console.warn("Router not available for redirect during logout");
+        }
 
     } catch (error) {
         console.error("❌ Logout error:", error);

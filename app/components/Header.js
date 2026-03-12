@@ -8,10 +8,10 @@ import {
     Image,
     Pressable,
     StyleSheet,
-    Text,
     useWindowDimensions,
     View
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../context/AuthContext";
 
 export default function MyHeader() {
@@ -71,7 +71,7 @@ export default function MyHeader() {
                 </View>
 
                 {/* Right: Buttons */}
-                <View style={styles.rightHeader}>
+                <View style={[styles.rightHeader, { gap: isMobile ? 8 : 16 }]}>
                     <Pressable style={styles.iconGroup} onPress={() => router.push("/")}>
                         <Entypo name="home" size={22} color="black" />
                         {!isMobile && <Text style={styles.iconLabel}>HOME</Text>}
@@ -169,7 +169,6 @@ const styles = StyleSheet.create({
     rightHeader: {
         flexDirection: "row",
         alignItems: "center",
-        gap: isMobile ? 8 : 16,
     },
     logo: {
         width: 42,
