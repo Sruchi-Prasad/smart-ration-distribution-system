@@ -10,9 +10,10 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
-import { fetchWithAuth } from "../utils/fetchWithAuth";
+import { fetchWithAuth } from "../../utils/fetchWithAuth";
 
-const API = "http://localhost:8000/api";
+import { API_BASE } from "../../utils/config";
+const API = `${API_BASE}/api`;
 
 export default function ManageProducts() {
   const [products, setProducts] = useState([]);
@@ -76,25 +77,25 @@ export default function ManageProducts() {
 
   // DELETE PRODUCT
   const deleteProduct = async (id) => {
-        try {
-            console.log("Deleting product:", id);
+    try {
+      console.log("Deleting product:", id);
 
-            const res = await fetchWithAuth(
-                `http://localhost:8000/api/products/${id}`,
-                {
-                    method: "DELETE",   // 🔴 THIS LINE IS CRITICAL
-                }
-            );
-
-            const data = await res.json();
-            console.log("Delete response:", data);
-
-            loadProducts(); // refresh list
-
-        } catch (err) {
-            console.log("Delete error:", err);
+      const res = await fetchWithAuth(
+        `${API_BASE}/api/products/${id}`,
+        {
+          method: "DELETE",   // 🔴 THIS LINE IS CRITICAL
         }
-    };
+      );
+
+      const data = await res.json();
+      console.log("Delete response:", data);
+
+      loadProducts(); // refresh list
+
+    } catch (err) {
+      console.log("Delete error:", err);
+    }
+  };
 
 
   const editProduct = (product) => {

@@ -1,6 +1,6 @@
 // utils/ration.js
 function getRationEntitlement(state, members, cardType) {
-  const baseEntitlement = { rice: 5, wheat: 5 };
+  const baseEntitlement = { rice: 5, wheat: 5, sugar: 1, oil: 1 };
 
   const stateExtras = {
     "Tamil Nadu": { sugar: 1, oil: 1 },

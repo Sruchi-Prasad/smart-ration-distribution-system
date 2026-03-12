@@ -1,9 +1,37 @@
 import { Entypo, FontAwesome, MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { API_BASE } from "../../utils/config";
+import { fetchWithAuth } from "../../utils/fetchWithAuth";
 
+/**
+ * NextDistribution Screen
+ * Shows eligibility and details for the upcoming distribution.
+ */
 export default function NextDistribution() {
   const router = useRouter();
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const res = await fetchWithAuth(`${API_BASE}/api/products`); // FIXED: was /api/product
+        if (res.ok) {
+          const data = await res.json();
+          // Filter products relevant for distribution (some might be admin-only)
+          setProducts(data);
+        }
+      } catch (err) {
+        console.error("Fetch products error:", err);
+        Alert.alert("Connection Issue", err.message || "Failed to connect to the backend.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProducts();
+  }, []);
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -21,18 +49,25 @@ export default function NextDistribution() {
 
       {/* Distribution Details */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Distribution Details</Text>
-        <Text style={styles.detail}>Rice: 35kg</Text>
-        <Text style={styles.detail}>Wheat: 35kg</Text>
-        <Text style={styles.detail}>Sugar: 5kg</Text>
-        <Text style={styles.detail}>Oil: 2L</Text>
-        <Text style={styles.eligibility}>✅ Eligible</Text>
+        <Text style={styles.sectionTitle}>Eligible Products</Text>
+        {loading ? (
+          <ActivityIndicator color="#003366" />
+        ) : products.length > 0 ? (
+          products.map((p, i) => (
+            <Text key={i} style={styles.detail}>
+              {p.name}: {p.minStock || "Standard"} {p.unit || "kg"}
+            </Text>
+          ))
+        ) : (
+          <Text style={styles.detail}>No products currently assigned.</Text>
+        )}
+        <Text style={styles.eligibility}>✅ Eligible for current period</Text>
       </View>
 
       {/* Instructions */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Instructions</Text>
-        <Text style={styles.detail}>Pickup Location: Mulund Ration Shop #12</Text>
+        <Text style={styles.detail}>Pickup Location: Assigned Ration Shop</Text>
         <Text style={styles.detail}>Timing: 9 AM – 5 PM</Text>
         <Text style={styles.detail}>Documents Required: Ration Card, Aadhaar</Text>
       </View>
@@ -41,7 +76,7 @@ export default function NextDistribution() {
       <View style={styles.actions}>
         <TouchableOpacity style={styles.button} onPress={() => router.push("/history")}>
           <MaterialIcons name="history" size={20} color="white" />
-          <Text style={styles.buttonText}>View History</Text>
+          <Text style={styles.buttonText}>View Transaction Log</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.button} onPress={() => router.push("/feedback")}>

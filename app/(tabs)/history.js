@@ -1,125 +1,178 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { API_BASE } from "../../utils/config";
+import { fetchWithAuth } from "../../utils/fetchWithAuth";
 
+/**
+ * DistributionHistoryPage
+ * Fetches and displays the distribution history for the logged-in user.
+ */
 export default function DistributionHistoryPage() {
+  const router = useRouter();
   const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const storedUser = await AsyncStorage.getItem("user");
-        if (!storedUser) return;
-        const parsedUser = JSON.parse(storedUser);
-
-        // Example: Replace with backend API call
-        // const API_URL = "http://localhost:8000";
-        // const res = await fetch(`${API_URL}/api/distribution/${parsedUser._id}`);
-        // const data = await res.json();
-        // setHistory(data.history);
-
-        // Temporary mock data
-        setHistory([
-          {
-            date: "2026-02-01",
-            items: { rice: 5, wheat: 3, sugar: 1, oil: 1 },
-            status: "Completed",
-          },
-          {
-            date: "2026-01-01",
-            items: { rice: 5, wheat: 5, sugar: 2, oil: 1 },
-            status: "Completed",
-          },
-          {
-            date: "2025-12-01",
-            items: { rice: 4, wheat: 4, sugar: 1, oil: 0 },
-            status: "Pending",
-          },
-        ]);
+        const res = await fetchWithAuth(`${API_BASE}/api/distribution/mine`);
+        if (res.ok) {
+          const data = await res.json();
+          setHistory(data);
+        }
       } catch (err) {
         console.error("Error fetching history:", err);
+      } finally {
+        setLoading(false);
       }
     };
-
     fetchHistory();
   }, []);
 
-  if (!history.length) return <Text style={{ padding: 20 }}>No distribution history found.</Text>;
+  if (loading) return (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator size="large" color="#003366" />
+      <Text style={styles.loadingText}>Fetching your records...</Text>
+    </View>
+  );
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.sectionTitle}>📜 Distribution History</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-      {history.map((entry, index) => (
-        <View key={index} style={styles.card}>
-          {/* Date + Status */}
-          <View style={styles.row}>
-            <MaterialIcons name="event" size={20} color="#003366" />
-            <Text style={styles.date}>{new Date(entry.date).toLocaleDateString()}</Text>
-            <View
-              style={[
-                styles.statusBadge,
-                { backgroundColor: entry.status === "Completed" ? "#4CAF50" : "#FFC107" },
-              ]}
-            >
-              <Text style={styles.statusText}>{entry.status}</Text>
-            </View>
-          </View>
+        {/* HEADER */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <MaterialIcons name="arrow-back-ios" size={20} color="#003366" />
+            <Text style={styles.backText}>Back</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Transaction Log</Text>
+        </View>
 
-          {/* Items */}
-          <View style={styles.items}>
-            <View style={styles.itemRow}>
-              <MaterialIcons name="restaurant" size={18} color="#4CAF50" />
-              <Text style={styles.itemText}>Rice: {entry.items.rice} kg</Text>
-            </View>
-            <View style={styles.itemRow}>
-              <MaterialIcons name="grain" size={18} color="#FFC107" />
-              <Text style={styles.itemText}>Wheat: {entry.items.wheat} kg</Text>
-            </View>
-            <View style={styles.itemRow}>
-              <MaterialIcons name="icecream" size={18} color="#9C27B0" />
-              <Text style={styles.itemText}>Sugar: {entry.items.sugar} kg</Text>
-            </View>
-            <View style={styles.itemRow}>
-              <MaterialIcons name="local-drink" size={18} color="#03A9F4" />
-              <Text style={styles.itemText}>Oil: {entry.items.oil} L</Text>
+        {/* SUMMARY HERO */}
+        <View style={styles.heroCard}>
+          <View style={styles.heroRow}>
+            <MaterialIcons name="receipt-long" size={32} color="white" />
+            <View style={{ marginLeft: 16 }}>
+              <Text style={styles.heroLabel}>TOTAL DISTRIBUTIONS</Text>
+              <Text style={styles.heroValue}>{history.length} RECORDS</Text>
             </View>
           </View>
         </View>
-      ))}
-    </ScrollView>
+
+        <Text style={styles.sectionLabel}>RECENT TRANSACTIONS</Text>
+
+        {/* LOG ENTRIES */}
+        {history.length > 0 ? (
+          history.map((entry, index) => (
+            <View key={index} style={styles.logCard}>
+              <View style={styles.logHeader}>
+                <View>
+                  <Text style={styles.txnId}>ID: {entry._id.substring(0, 8).toUpperCase()}</Text>
+                  <Text style={styles.txnDate}>{new Date(entry.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
+                </View>
+                <View style={[styles.statusBadge, styles.completedBadge]}>
+                  <Text style={styles.statusText}>Completed</Text>
+                </View>
+              </View>
+
+              <View style={styles.shopInfo}>
+                <MaterialIcons name="storefront" size={16} color="#64748B" />
+                <Text style={styles.shopName}>Official Ration Distribution</Text>
+              </View>
+
+              <View style={styles.dashedLine} />
+
+              <View style={styles.itemsGrid}>
+                <ItemBox
+                  label={entry.product?.name?.toUpperCase() || "PRODUCT"}
+                  val={`${entry.quantity}${entry.product?.unit || "U"}`}
+                  icon={entry.product?.name?.toLowerCase() === "oil" ? "opacity" : "inventory-2"}
+                />
+              </View>
+
+              <TouchableOpacity style={styles.detailLink}>
+                <Text style={styles.linkText}>VIEW DIGITAL RECEIPT</Text>
+                <MaterialIcons name="arrow-forward" size={16} color="#FF9933" />
+              </TouchableOpacity>
+            </View>
+          ))
+        ) : (
+          <View style={styles.emptyContainer}>
+            <MaterialIcons name="history" size={64} color="#CBD5E1" />
+            <Text style={styles.emptyText}>No distribution records found.</Text>
+          </View>
+        )}
+
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
+const ItemBox = ({ label, val, icon }) => (
+  <View style={styles.itemBox}>
+    <MaterialIcons name={icon} size={14} color="#003366" />
+    <Text style={styles.itemVal}>{val}</Text>
+    <Text style={styles.itemLabel}>{label}</Text>
+  </View>
+);
+
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, padding: 20, backgroundColor: "#f5f5f5" },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#003366",
+  safeArea: { flex: 1, backgroundColor: "#F4F7FB" },
+  scrollContent: { padding: 20, paddingBottom: 40 },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F4F7FB" },
+  loadingText: { fontSize: 16, fontWeight: "900", color: "#003366", marginTop: 12 },
+  header: { flexDirection: "row", alignItems: "center", marginBottom: 24 },
+  backBtn: { flexDirection: "row", alignItems: "center", backgroundColor: "white", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, elevation: 4 },
+  backText: { marginLeft: 4, fontWeight: "800", color: "#003366", fontSize: 14 },
+  headerTitle: { fontSize: 18, fontWeight: "900", color: "#003366", marginLeft: 20, textTransform: "uppercase", letterSpacing: 0.5 },
+
+  heroCard: {
+    backgroundColor: "#003366",
+    borderRadius: 24,
+    padding: 24,
+    marginBottom: 24,
+    elevation: 8,
+    borderBottomWidth: 4,
+    borderBottomColor: "#FF9933",
+  },
+  heroRow: { flexDirection: "row", alignItems: "center" },
+  heroLabel: { color: "#FF9933", fontSize: 10, fontWeight: "900", letterSpacing: 1.5 },
+  heroValue: { color: "white", fontSize: 24, fontWeight: "900", marginTop: 4 },
+
+  sectionLabel: { fontSize: 12, fontWeight: "900", color: "#64748B", marginBottom: 16, letterSpacing: 1.5 },
+
+  logCard: {
+    backgroundColor: "white",
+    borderRadius: 24,
+    padding: 20,
     marginBottom: 16,
-    textAlign: "center",
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: "#EEF2F6",
   },
-  card: {
-    backgroundColor: "#fff",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  row: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
-  date: { flex: 1, marginLeft: 8, fontSize: 15, fontWeight: "600", color: "#333" },
-  statusBadge: {
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 20,
-  },
-  statusText: { color: "white", fontWeight: "600", fontSize: 12 },
-  items: { marginTop: 8 },
-  itemRow: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
-  itemText: { marginLeft: 6, fontSize: 14, color: "#555" },
+  logHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 },
+  txnId: { fontSize: 10, fontWeight: "900", color: "#94A3B8" },
+  txnDate: { fontSize: 16, fontWeight: "900", color: "#003366", marginTop: 2 },
+  statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  completedBadge: { backgroundColor: "#ECFDF5" },
+  statusText: { fontSize: 10, fontWeight: "900", textTransform: "uppercase", color: "#059669" },
+
+  shopInfo: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
+  shopName: { fontSize: 12, fontWeight: "700", color: "#64748B", marginLeft: 6 },
+
+  dashedLine: { height: 1, borderStyle: "dashed", borderWidth: 1, borderColor: "#E2E8F0", marginVertical: 12 },
+
+  itemsGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-start", marginBottom: 16 },
+  itemBox: { width: "30%", alignItems: "center", backgroundColor: "#F8FAFC", padding: 10, borderRadius: 12, marginRight: 10 },
+  itemVal: { fontSize: 13, fontWeight: "900", color: "#003366", marginVertical: 4 },
+  itemLabel: { fontSize: 8, fontWeight: "800", color: "#64748B", textTransform: "uppercase" },
+
+  detailLink: { flexDirection: "row", alignItems: "center", justifyContent: "center", borderTopWidth: 1, borderTopColor: "#F1F5F9", paddingTop: 16 },
+  linkText: { fontSize: 11, fontWeight: "900", color: "#FF9933", marginRight: 8, letterSpacing: 0.5 },
+
+  emptyContainer: { alignItems: "center", marginTop: 40 },
+  emptyText: { marginTop: 16, fontSize: 16, color: "#64748B", fontWeight: "700" },
 });

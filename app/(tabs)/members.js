@@ -1,8 +1,10 @@
-import { FontAwesome, MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { API_BASE } from "../../utils/config";
+import { fetchWithAuth } from "../../utils/fetchWithAuth";
 
 export default function MembersPage() {
   const router = useRouter();
@@ -13,46 +15,13 @@ export default function MembersPage() {
     const fetchMembers = async () => {
       try {
         const storedUser = await AsyncStorage.getItem("user");
-        let token = await AsyncStorage.getItem("accessToken");
-        const refreshToken = await AsyncStorage.getItem("refreshToken");
-
-        if (!storedUser || !token) {
-          console.warn("No stored user or token found");
+        if (!storedUser) {
           setLoading(false);
           return;
         }
 
         const parsedUser = JSON.parse(storedUser);
-        const API_URL = "http://localhost:8000";
-
-        let res = await fetch(`${API_URL}/api/auth/user/${parsedUser._id}`, {
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
-          },
-        });
-
-        if (res.status === 401 && refreshToken) {
-          const refreshRes = await fetch(`${API_URL}/api/auth/refresh`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ refreshToken }),
-          });
-
-          if (refreshRes.ok) {
-            const refreshData = await refreshRes.json();
-            token = refreshData.accessToken;
-            await AsyncStorage.setItem("accessToken", token);
-            await AsyncStorage.setItem("refreshToken", refreshData.refreshToken);
-
-            res = await fetch(`${API_URL}/api/auth/user/${parsedUser._id}`, {
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${token}`,
-              },
-            });
-          }
-        }
+        const res = await fetchWithAuth(`${API_BASE}/api/auth/user/${parsedUser._id}`);
 
         if (res.ok) {
           const data = await res.json();
@@ -64,127 +33,207 @@ export default function MembersPage() {
         setLoading(false);
       }
     };
-
     fetchMembers();
   }, []);
 
-  if (loading) return <Text style={{ padding: 20 }}>Loading...</Text>;
+  if (loading) return (
+    <View style={styles.loadingContainer}>
+      <Text style={styles.loadingText}>Verifying Household...</Text>
+    </View>
+  );
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Image source={require("../../assets/images/emblem.png")} style={styles.emblem} />
-        <Text style={styles.title}>SMART RATION DISTRIBUTION SYSTEM</Text>
-      </View>
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-      {/* Section Header */}
-      <View style={styles.sectionHeader}>
-        <FontAwesome name="users" size={18} color="white" style={{ marginRight: 8 }} />
-        <Text style={styles.sectionHeaderText}>Household Members</Text>
-      </View>
+        {/* HEADER */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <MaterialIcons name="arrow-back-ios" size={20} color="#003366" />
+            <Text style={styles.backText}>Back</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Household Registry</Text>
+        </View>
 
-      {/* Member Cards */}
-      {members.map((m, index) => (
-        <View key={index} style={styles.card}>
-          <View style={styles.cardRow}>
-            {/* Avatar */}
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{m.name[0].toUpperCase()}</Text>
-            </View>
-
-            {/* Details */}
-            <View style={{ flex: 1 }}>
-              <Text style={styles.name}>{m.name}</Text>
-              <Text style={styles.detail}>Age: {m.age}</Text>
-            </View>
-
-            {/* Status Badge */}
-            <View style={styles.statusBadge}>
-              <FontAwesome name="check-circle" size={14} color="white" />
-              <Text style={styles.statusText}>Active</Text>
+        {/* SUMMARY HERO */}
+        <View style={styles.heroSummary}>
+          <View style={styles.heroTop}>
+            <MaterialIcons name="family-restroom" size={32} color="white" />
+            <View style={styles.heroText}>
+              <Text style={styles.heroLabel}>LINKED MEMBERS</Text>
+              <Text style={styles.heroValue}>{members.length} INDIVIDUALS</Text>
             </View>
           </View>
+          <View style={styles.heroBadge}>
+            <MaterialIcons name="verified" size={14} color="#128807" />
+            <Text style={styles.badgeText}>ELIBILITY VERIFIED</Text>
+          </View>
         </View>
-      ))}
 
-      {/* Actions */}
-      <View style={styles.actions}>
-        <TouchableOpacity style={styles.button} onPress={() => router.push("/add-member")}>
-          <MaterialIcons name="person-add" size={20} color="white" />
-          <Text style={styles.buttonText}>Add Member</Text>
-        </TouchableOpacity>
+        {/* MEMBER LIST */}
+        <Text style={styles.sectionLabel}>REGISTERED MEMBERS</Text>
+        {members.map((m, index) => (
+          <View key={index} style={styles.memberCard}>
+            <View style={styles.cardHeader}>
+              <View style={[styles.avatarBox, { backgroundColor: index % 2 === 0 ? "#003366" : "#FF9933" }]}>
+                <Text style={styles.avatarText}>{m.name[0].toUpperCase()}</Text>
+              </View>
+              <View style={styles.infoBox}>
+                <Text style={styles.memberName}>{m.name}</Text>
+                <View style={styles.metaRow}>
+                  <MaterialIcons name="cake" size={14} color="#64748B" />
+                  <Text style={styles.metaText}>{m.age} Years Old</Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  if (m.kycStatus !== "Verified") {
+                    router.push({ pathname: "/(tabs)/kycForm", params: { memberId: m._id, memberName: m.name, memberAge: m.age, memberAadhaar: m.aadhaarNumber } });
+                  }
+                }}
+                style={[
+                  styles.statusBox,
+                  { backgroundColor: m.kycStatus === "Verified" ? "#F0FDF4" : m.kycStatus === "Rejected" ? "#FEF2F2" : "#FFFBEB" }
+                ]}
+              >
+                <View style={[
+                  styles.statusDot,
+                  { backgroundColor: m.kycStatus === "Verified" ? "#128807" : m.kycStatus === "Rejected" ? "#DC2626" : "#D97706" }
+                ]} />
+                <Text style={[
+                  styles.statusText,
+                  { color: m.kycStatus === "Verified" ? "#166534" : m.kycStatus === "Rejected" ? "#991B1B" : "#92400E" }
+                ]}>
+                  {m.kycStatus || "PENDING"}
+                </Text>
+              </TouchableOpacity>
+            </View>
 
-        <TouchableOpacity style={styles.button} onPress={() => router.push("/update-member")}>
-          <MaterialIcons name="edit" size={20} color="white" />
-          <Text style={styles.buttonText}>Update Member Info</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+            <View style={styles.dashedLine} />
+
+            <View style={styles.cardFooter}>
+              <View style={styles.tag}>
+                <MaterialIcons name="qr-code" size={12} color="#003366" />
+                <Text style={styles.tagText}>AADHAAR LINKED</Text>
+              </View>
+              <TouchableOpacity style={styles.actionLink}>
+                <Text style={styles.linkText}>DETAILS</Text>
+                <MaterialIcons name="chevron-right" size={16} color="#FF9933" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))}
+
+        {/* ACTIONS */}
+        <View style={styles.actionsBox}>
+          <TouchableOpacity style={styles.primaryAction} onPress={() => router.push("/add-member")}>
+            <MaterialIcons name="person-add" size={24} color="white" />
+            <View style={styles.btnTextWrapper}>
+              <Text style={styles.btnMain}>ADD NEW MEMBER</Text>
+              <Text style={styles.btnSub}>Expand household eligibility</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.secondaryAction} onPress={() => router.push("/update-member")}>
+            <MaterialIcons name="edit" size={22} color="#003366" />
+            <Text style={styles.secondaryBtnText}>MODIFY RECORD</Text>
+          </TouchableOpacity>
+        </View>
+
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, padding: 20, backgroundColor: "#f5f5f5" },
-  header: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
-  emblem: { width: 40, height: 40, marginRight: 10 },
-  title: { fontSize: 18, fontWeight: "bold", color: "#003366" },
+  safeArea: { flex: 1, backgroundColor: "#F4F7FB" },
+  scrollContent: { padding: 20, paddingBottom: 40 },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F4F7FB" },
+  loadingText: { fontSize: 16, fontWeight: "900", color: "#003366" },
+  header: { flexDirection: "row", alignItems: "center", marginBottom: 24 },
+  backBtn: { flexDirection: "row", alignItems: "center", backgroundColor: "white", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, elevation: 4 },
+  backText: { marginLeft: 4, fontWeight: "800", color: "#003366", fontSize: 14 },
+  headerTitle: { fontSize: 18, fontWeight: "900", color: "#003366", marginLeft: 20, textTransform: "uppercase", letterSpacing: 0.5 },
 
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
+  heroSummary: {
     backgroundColor: "#003366",
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
+    borderRadius: 24,
+    padding: 24,
+    marginBottom: 24,
+    elevation: 8,
+    borderBottomWidth: 4,
+    borderBottomColor: "#FF9933",
   },
-  sectionHeaderText: { color: "white", fontSize: 16, fontWeight: "bold" },
-
-  card: {
-    backgroundColor: "#fff",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  cardRow: { flexDirection: "row", alignItems: "center" },
-
-  avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "#E3F2FD",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  avatarText: { color: "#003366", fontWeight: "bold", fontSize: 18 },
-
-  name: { fontSize: 16, fontWeight: "bold", color: "#003366" },
-  detail: { fontSize: 14, color: "#555", marginTop: 2 },
-
-  statusBadge: {
+  heroTop: { flexDirection: "row", alignItems: "center" },
+  heroText: { marginLeft: 16 },
+  heroLabel: { color: "#FF9933", fontSize: 10, fontWeight: "900", letterSpacing: 1.5 },
+  heroValue: { color: "white", fontSize: 24, fontWeight: "900", marginTop: 4 },
+  heroBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#4CAF50",
-    paddingVertical: 4,
-    paddingHorizontal: 10,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  badgeText: { color: "white", fontSize: 9, fontWeight: "900", marginLeft: 6, letterSpacing: 1 },
+
+  sectionLabel: { fontSize: 11, fontWeight: "900", color: "#64748B", marginBottom: 16, letterSpacing: 1.5, textTransform: "uppercase" },
+
+  memberCard: {
+    backgroundColor: "white",
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 16,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: "#EEF2F6",
+  },
+  cardHeader: { flexDirection: "row", alignItems: "center" },
+  avatarBox: { width: 52, height: 52, borderRadius: 26, justifyContent: "center", alignItems: "center", elevation: 4 },
+  avatarText: { color: "white", fontSize: 20, fontWeight: "900" },
+  infoBox: { flex: 1, marginLeft: 16 },
+  memberName: { fontSize: 16, fontWeight: "900", color: "#003366" },
+  metaRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
+  metaText: { fontSize: 12, fontWeight: "700", color: "#64748B", marginLeft: 4 },
+  statusBox: { flexDirection: "row", alignItems: "center", backgroundColor: "#F0FDF4", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#128807", marginRight: 6 },
+  statusText: { fontSize: 9, fontWeight: "900", color: "#166534" },
+
+  dashedLine: { height: 1, borderStyle: "dashed", borderWidth: 1, borderColor: "#E2E8F0", marginVertical: 16 },
+
+  cardFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  tag: { flexDirection: "row", alignItems: "center", backgroundColor: "#F8FAFC", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  tagText: { fontSize: 9, fontWeight: "900", color: "#64748B", marginLeft: 4 },
+  actionLink: { flexDirection: "row", alignItems: "center" },
+  linkText: { fontSize: 10, fontWeight: "900", color: "#FF9933", marginRight: 4 },
+
+  actionsBox: { marginTop: 10, marginBottom: 20 },
+  primaryAction: {
+    backgroundColor: "#003366",
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 20,
     borderRadius: 20,
+    marginBottom: 12,
+    elevation: 4,
   },
-  statusText: { color: "white", fontWeight: "600", fontSize: 12, marginLeft: 4 },
+  btnTextWrapper: { marginLeft: 16 },
+  btnMain: { color: "white", fontSize: 15, fontWeight: "900", letterSpacing: 0.5 },
+  btnSub: { color: "rgba(255,255,255,0.6)", fontSize: 10, fontWeight: "600", marginTop: 2 },
 
-  actions: { marginTop: 20 },
-  button: {
+  secondaryAction: {
+    backgroundColor: "white",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#003366",
-    padding: 14,
-    borderRadius: 8,
-    marginBottom: 12,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#EEF2F6",
+    elevation: 2,
   },
-  buttonText: { color: "white", fontWeight: "bold", marginLeft: 10, fontSize: 16 },
+  secondaryBtnText: { color: "#003366", fontSize: 12, fontWeight: "900", marginLeft: 10, letterSpacing: 1 },
 });

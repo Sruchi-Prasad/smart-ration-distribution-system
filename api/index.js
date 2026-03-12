@@ -28,7 +28,7 @@ const port = process.env.PORT || 8000;
 
 app.use(cors({
   origin: "*",
-  methods: ["GET", "POST", "PUT", "DELETE"],
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
@@ -51,6 +51,9 @@ app.use(
 // ============================
 app.use((req, res, next) => {
   console.log(`📡 ${req.method} ${req.url}`);
+  if (req.method !== 'GET') {
+    console.log(`📦 Body:`, JSON.stringify(req.body, null, 2));
+  }
   next();
 });
 
@@ -68,7 +71,8 @@ app.use("/api/feedback", feedbackRoutes);
 app.use("/api/audit", auditRoutes);
 app.use("/api/shops", shopsRouter);
 app.use("/api/analytics", require("./routes/analytics"));
-app.use("/api/feedback", require("./routes/feedback"));
+app.use("/api/marketplace", require("./routes/marketplace"));
+app.use("/api/distribution", require("./routes/distribution"));
 
 // ============================
 // ✅ ADMIN DASHBOARD STATS
@@ -121,7 +125,7 @@ app.get("/api/admin/users", requireAuth, requireAdmin, async (req, res) => {
   try {
     const users = await User.find({
       role: { $in: ["user", "shopkeeper"] }
-    });
+    }).populate("assignedShop", "fullName shopName");
 
     res.json(users);
 
@@ -149,5 +153,5 @@ mongoose
 // ✅ START SERVER
 // ============================
 app.listen(port, () => {
-  console.log(`🚀 Server running at http://localhost:${port}`);
+  console.log(`🚀 Server running on port ${port}`);
 });

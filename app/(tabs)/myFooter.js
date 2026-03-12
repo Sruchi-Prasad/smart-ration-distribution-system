@@ -7,10 +7,10 @@ export default function FooterNav() {
   const pathname = usePathname();
 
   const tabs = [
-    { label: "Home", icon: <MaterialIcons name="home" size={24} />, route: "/" },
-    { label: "Members", icon: <FontAwesome name="users" size={22} />, route: "/members" },
-    { label: "Report", icon: <MaterialIcons name="report-problem" size={22} />, route: "/report" },
-    { label: "Feedback", icon: <MaterialIcons name="feedback" size={22} />, route: "/feedback" },
+    { label: "Home", icon: (active) => <MaterialIcons name="home" size={26} color={active ? "white" : "#003366"} />, route: "/" },
+    { label: "Market", icon: (active) => <MaterialIcons name="shopping-bag" size={22} color={active ? "white" : "#003366"} />, route: "/Marketplace" },
+    { label: "Members", icon: (active) => <FontAwesome name="users" size={22} color={active ? "white" : "#003366"} />, route: "/members" },
+    { label: "Feedback", icon: (active) => <MaterialIcons name="feedback" size={22} color={active ? "white" : "#003366"} />, route: "/feedback" },
   ];
 
   return (
@@ -24,7 +24,7 @@ export default function FooterNav() {
             onPress={() => router.push(tab.route)}
           >
             <View style={[styles.iconWrapper, isActive && styles.activeIcon]}>
-              {tab.icon}
+              {tab.icon(isActive)}
             </View>
             <Text style={[styles.tabText, isActive && styles.activeText]}>
               {tab.label}

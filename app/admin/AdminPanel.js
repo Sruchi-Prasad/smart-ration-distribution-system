@@ -1,10 +1,8 @@
 import { FontAwesome, MaterialIcons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   RefreshControl,
   ScrollView,
@@ -14,7 +12,9 @@ import {
   View
 } from "react-native";
 import * as Progress from "react-native-progress";
-import { fetchWithAuth } from "../utils/fetchWithAuth";
+import { useAuth } from "../../context/AuthContext";
+import { API_BASE } from "../../utils/config";
+import { fetchWithAuth } from "../../utils/fetchWithAuth";
 import UserGrid from "./UserGrid";
 
 export default function AdminPanel() {
@@ -24,6 +24,7 @@ export default function AdminPanel() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [blastLoading, setBlastLoading] = useState(false);
 
   const [panelData, setPanelData] = useState({
     usersLogged: 0,
@@ -33,18 +34,9 @@ export default function AdminPanel() {
     stateSummary: []
   });
 
-  /* ---------------- ROLE CHECK ---------------- */
-  useEffect(() => {
-    const checkRole = async () => {
-      const storedUser = await AsyncStorage.getItem("user");
-      const user = storedUser ? JSON.parse(storedUser) : null;
+  const { user, logout } = useAuth();
 
-      if (!user || user.role !== "admin") {
-        router.replace("/login");
-      }
-    };
-    checkRole();
-  }, []);
+  /* Dashboard and data loading logic continues... */
 
   /* ---------------- LOAD DASHBOARD ---------------- */
   const loadPanel = useCallback(async () => {
@@ -52,7 +44,7 @@ export default function AdminPanel() {
       setError(null);
 
       // Use your helper instead of plain fetch
-      const res = await fetchWithAuth("http://localhost:8000/api/admin/panel");
+      const res = await fetchWithAuth(`${API_BASE}/api/admin/panel`);
 
       if (!res.ok) {
         throw new Error("Failed to fetch dashboard");
@@ -85,27 +77,28 @@ export default function AdminPanel() {
 
   /* ---------------- LOGOUT ---------------- */
   const handleLogout = () => {
-    Alert.alert("Logout", "Are you sure you want to logout?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Logout",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await AsyncStorage.multiRemove([
-              "accessToken",
-              "refreshToken",
-              "user"
-            ]);
-            // ✅ Ensure storage is cleared before navigating
-            console.log("Tokens cleared, redirecting...");
-            router.replace("/login");
-          } catch (err) {
-            console.error("Logout failed:", err);
-          }
-        }
-      }
-    ]);
+    logout();
+  };
+
+  /* ---------------- BLAST KYC REMINDER ---------------- */
+  const blastKycReminder = async () => {
+    const confirmed = confirm(
+      "This will send an email AND in-app notification to ALL users with pending KYC. Continue?"
+    );
+    if (!confirmed) return;
+
+    try {
+      setBlastLoading(true);
+      const res = await fetchWithAuth(`${API_BASE}/api/auth/send-kyc-reminder`, { method: "POST" });
+      const data = await res.json();
+      alert(
+        `✅ KYC Reminder Sent!\n\nIn-app notifications: ${data.notificationsSaved}\nEmails sent: ${data.emailsSent}\nSkipped (rate-limit): ${data.skippedRateLimit}`
+      );
+    } catch (err) {
+      alert("❌ Failed to blast reminder. Please try again.");
+    } finally {
+      setBlastLoading(false);
+    }
   };
 
 
@@ -118,8 +111,8 @@ export default function AdminPanel() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#1E88E5" />
-        <Text>Loading Admin Dashboard...</Text>
+        <ActivityIndicator size="large" color="#FF9933" />
+        <Text style={{ marginTop: 16, fontWeight: "900", color: "#003366", textTransform: "uppercase", letterSpacing: 1 }}>Authenticating Dashboard...</Text>
       </View>
     );
   }
@@ -128,11 +121,10 @@ export default function AdminPanel() {
   if (error) {
     return (
       <View style={styles.center}>
-        <Text style={{ color: "red" }}>{error}</Text>
-        <TouchableOpacity onPress={loadPanel}>
-          <Text style={{ color: "#1E88E5", marginTop: 10 }}>
-            Retry
-          </Text>
+        <MaterialIcons name="error-outline" size={48} color="#D32F2F" />
+        <Text style={{ color: "#D32F2F", fontWeight: "800", marginTop: 16 }}>{error}</Text>
+        <TouchableOpacity onPress={loadPanel} style={{ marginTop: 20, backgroundColor: "#003366", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 }}>
+          <Text style={{ color: "white", fontWeight: "900", textTransform: "uppercase" }}>Retry Connection</Text>
         </TouchableOpacity>
       </View>
     );
@@ -145,201 +137,337 @@ export default function AdminPanel() {
 
   return (
     <ScrollView
-      contentContainerStyle={styles.container}
+      style={styles.container}
+      contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF9933" />
       }
     >
       {/* HEADER */}
-      <View style={styles.header}>
-        <Image
-          source={require("../../assets/images/emblem.png")}
-          style={styles.emblem}
-        />
-        <Text style={styles.headerText}>
-          SMART RATION DISTRIBUTION SYSTEM
-        </Text>
+      <View style={styles.premiumHeader}>
+        <View style={styles.headerContent}>
+          <Image
+            source={require("../../assets/images/emblem.png")}
+            style={styles.emblem}
+          />
+          <Text style={styles.headerTitle}>
+            National Smart Ration Portal
+          </Text>
+        </View>
+        <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
+          <MaterialIcons name="logout" size={20} color="#FF9933" />
+        </TouchableOpacity>
       </View>
 
-      <Text style={styles.title}>Admin Panel</Text>
+      <Text style={styles.pageTitle}>Administrative Control</Text>
+      <View style={styles.titleUnderline} />
 
       {/* LOGIN PROGRESS */}
-      <View style={styles.loginSummary}>
-        <View style={styles.barWrapper}>
-          <FontAwesome name="user" size={24} color="#003366" />
-          <Text style={styles.loginLabel}>Users Logged In</Text>
+      <View style={styles.statsRow}>
+        <View style={styles.progressCard}>
+          <View style={styles.cardHeader}>
+            <View style={[styles.iconBox, { backgroundColor: "#E3F2FD" }]}>
+              <FontAwesome name="user" size={20} color="#003366" />
+            </View>
+            <Text style={styles.cardTitle}>Consumer Load</Text>
+          </View>
           <Progress.Bar
             progress={panelData.usersLogged / 100}
-            width={200}
-            color="#00BFFF"
+            width={null}
+            color="#003366"
+            unfilledColor="#F0F4F8"
+            borderWidth={0}
+            height={6}
+            borderRadius={3}
           />
-          <Text>{panelData.usersLogged}%</Text>
+          <View style={styles.cardFooter}>
+            <Text style={styles.percentageText}>{panelData.usersLogged}%</Text>
+            <Text style={styles.statusText}>Active Transitions</Text>
+          </View>
         </View>
 
-        <View style={styles.barWrapper}>
-          <FontAwesome name="shopping-cart" size={24} color="#003366" />
-          <Text style={styles.loginLabel}>Shopkeepers Logged</Text>
+        <View style={styles.progressCard}>
+          <View style={styles.cardHeader}>
+            <View style={[styles.iconBox, { backgroundColor: "#FFF3E0" }]}>
+              <FontAwesome name="shopping-cart" size={20} color="#FF9933" />
+            </View>
+            <Text style={styles.cardTitle}>Shopkeeper Load</Text>
+          </View>
           <Progress.Bar
             progress={panelData.shopkeepersLogged / 100}
-            width={200}
-            color="#FF6347"
+            width={null}
+            color="#FF9933"
+            unfilledColor="#F0F4F8"
+            borderWidth={0}
+            height={6}
+            borderRadius={3}
           />
-          <Text>{panelData.shopkeepersLogged}%</Text>
+          <View style={styles.cardFooter}>
+            <Text style={[styles.percentageText, { color: "#FF9933" }]}>{panelData.shopkeepersLogged}%</Text>
+            <Text style={styles.statusText}>System Uptime</Text>
+          </View>
         </View>
       </View>
 
-      {/* STAT CARDS */}
-      <View style={styles.statCard}>
+      {/* QUICK STATS */}
+      <View style={styles.statsRow}>
         <TouchableOpacity
+          style={styles.miniStatCard}
           onPress={async () => {
             try {
-              const response = await fetch("http://localhost:8000/api/recent-logins");
+              const response = await fetch(`${API_BASE}/api/recent-logins`);
               const data = await response.json();
               router.push({
                 pathname: "/admin/RecentLoginsScreen",
                 params: { logins: JSON.stringify(data) }
               });
-
             } catch (error) {
               console.error("Error fetching recent logins:", error);
             }
           }}
         >
-          <Text>Recent Logins (7 days)</Text>
+          <Text style={styles.statLabel}>Recent Logins (7d)</Text>
+          <Text style={styles.statValue}>{panelData.recentLoginsCount}</Text>
         </TouchableOpacity>
 
-
-        <Text style={styles.loginCount}>
-          {panelData.recentLoginsCount}
-        </Text>
+        <View style={styles.miniStatCard}>
+          <Text style={styles.statLabel}>Distributed Users</Text>
+          <Text style={[styles.statValue, { color: "#128807" }]}>{panelData.distributedUsers}</Text>
+        </View>
       </View>
 
-      <View style={styles.statCard}>
-        <Text>Users Distributed</Text>
-        <Text style={styles.loginCount}>
-          {panelData.distributedUsers}
-        </Text>
-      </View>
-
-      <View style={styles.stateCard}>
-        <Text style={styles.stateTitle}>Users by State</Text>
+      {/* STATE SUMMARY */}
+      <View style={styles.analyticsCard}>
+        <Text style={styles.analyticsTitle}>Geographical Distribution</Text>
 
         {panelData.stateSummary.length === 0 ? (
-          <Text>No state data available</Text>
+          <Text style={styles.emptyText}>No state data captured</Text>
         ) : (
           panelData.stateSummary.map((item, index) => (
             <View key={index} style={styles.stateRow}>
-              <Text style={styles.stateName}>
+              <Text style={styles.stateLabel}>
                 {item.state || item._id || "Unknown"}
               </Text>
               <View style={styles.progressWrapper}>
                 <Progress.Bar
                   progress={item.count / maxUsers}
                   width={null}
-                  height={10}
-                  color="#4CAF50"
+                  height={8}
+                  color="#003366"
+                  unfilledColor="#F0F4F8"
+                  borderWidth={0}
+                  borderRadius={4}
                 />
               </View>
-
               <Text style={styles.stateCount}>{item.count}</Text>
             </View>
           ))
         )}
       </View>
 
-      {/* DASHBOARD GRID */}
-      <View style={styles.grid}>
-        <Tile icon="people" text="Manage Users" onPress={() => setShowUserGrid(true)} />
-        <Tile icon="inventory" text="Manage Products" onPress={() => router.push("/admin/Productlist")} />
-        <Tile icon="event" text="Distribution Tracking" onPress={() => router.push("/admin/distributionTracking")} />
-        <Tile icon="feedback" text="Feedback Review" onPress={() => router.push("/admin/feedbackReview")} />
-        <Tile icon="history" text="Audit Logs" onPress={() => router.push("/admin/auditLogs")} />
-        <Tile icon="bar-chart" text="Analytics" onPress={() => router.push("/admin/analytics")} />
-        <Tile icon="settings" text="System Settings" onPress={() => router.push("/admin/SystemSetting")} />
-        <Tile icon="logout" text="Logout" onPress={async () => {
-          console.log("Logout pressed");
-          await AsyncStorage.multiRemove(["accessToken", "refreshToken", "user"]);
-          router.replace("/login");
-        }}
+      {/* STRATEGIC HUB */}
+      <Text style={styles.gridTitle}>Strategic Hub</Text>
+      <View style={styles.hubContainer}>
+        <HubCard
+          title="Inventory"
+          desc="Manage stock levels, update product list, and track intake."
+          onPress={() => router.push("/admin/Productlist")}
+        />
+        <HubCard
+          title="Analytics"
+          desc="Deep dive into performance, usage trends, and demographics."
+          onPress={() => router.push("/admin/analytics")}
         />
       </View>
+
+      {/* ACTION GRID */}
+      <Text style={styles.gridTitle}>System Management</Text>
+      <View style={styles.grid}>
+        <Tile icon="people" text="Users" onPress={() => setShowUserGrid(true)} />
+        <Tile icon="inventory" text="Products" onPress={() => router.push("/admin/Productlist")} />
+        <Tile icon="location-on" text="Distribution" onPress={() => router.push("/admin/distributionTracking")} />
+        <Tile icon="rate-review" text="Feedback" onPress={() => router.push("/admin/feedbackReview")} />
+        <Tile icon="local-shipping" text="Refill Requests" color="#FF9933" onPress={() => router.push("/admin/RefillRequests")} />
+        <Tile icon="security" text="Audit Logs" onPress={() => router.push("/admin/auditLogs")} />
+        <Tile icon="insights" text="Reports" onPress={() => router.push("/admin/analytics")} />
+        <Tile icon="settings" text="Settings" onPress={() => router.push("/admin/SystemSetting")} />
+        <Tile icon="logout" text="Logout" color="#D32F2F" onPress={handleLogout} />
+      </View>
+
+      {/* BLAST KYC REMINDER */}
+      <TouchableOpacity
+        style={[styles.blastBtn, blastLoading && { opacity: 0.6 }]}
+        onPress={blastKycReminder}
+        disabled={blastLoading}
+      >
+        {blastLoading
+          ? <ActivityIndicator color="white" />
+          : <MaterialIcons name="notifications-active" size={20} color="white" />
+        }
+        <Text style={styles.blastBtnText}>
+          {blastLoading ? "Sending..." : "Blast KYC Reminder to All"}
+        </Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
 
-/* -------- TILE COMPONENT (Reusable) -------- */
-const Tile = ({ icon, text, onPress }) => (
-  <TouchableOpacity style={styles.tile} onPress={onPress}>
-    <MaterialIcons name={icon} size={28} color="white" />
-    <Text style={styles.tileText}>{text}</Text>
+const HubCard = ({ title, desc, onPress }) => (
+  <TouchableOpacity style={styles.hubCard} onPress={onPress}>
+    <View style={styles.hubHeader}>
+      <Text style={styles.hubTitle}>{title}</Text>
+      <MaterialIcons name="chevron-right" size={20} color="#003366" />
+    </View>
+    <Text style={styles.hubDesc}>{desc}</Text>
   </TouchableOpacity>
 );
 
-/* -------- STYLES -------- */
+const Tile = ({ icon, text, onPress, color = "#003366" }) => (
+  <TouchableOpacity style={styles.tile} onPress={onPress}>
+    <View style={[styles.tileIcon, { backgroundColor: color === "#D32F2F" ? "#FFEBEB" : "#F0F4F8" }]}>
+      <MaterialIcons name={icon} size={24} color={color} />
+    </View>
+    <Text style={[styles.tileText, { color: color === "#D32F2F" ? "#D32F2F" : "#003366" }]}>{text}</Text>
+  </TouchableOpacity>
+);
+
 const styles = StyleSheet.create({
-  container: { padding: 20, backgroundColor: "#f5f5f5" },
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: { flexDirection: "row", justifyContent: "center", alignItems: "center" },
-  emblem: { width: 40, height: 40, marginRight: 10 },
-  headerText: { fontWeight: "bold", color: "#003366" },
-  title: { fontSize: 24, fontWeight: "bold", textAlign: "center", marginVertical: 20 },
+  container: { flex: 1, backgroundColor: "#F4F7FB" },
+  hubContainer: { marginBottom: 20 },
+  hubCard: {
+    backgroundColor: "white",
+    padding: 24,
+    borderRadius: 24,
+    marginBottom: 16,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    borderWidth: 1,
+    borderColor: "#EEF2F6",
+  },
+  hubHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
+  hubTitle: { fontSize: 18, fontWeight: "900", color: "#003366", textTransform: "uppercase", letterSpacing: 1 },
+  hubDesc: { fontSize: 13, color: "#666", fontWeight: "600", lineHeight: 20 },
+  content: { padding: 20, paddingBottom: 40 },
+  center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F4F7FB" },
+  blastBtn: {
+    backgroundColor: "#D32F2F",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 18,
+    borderRadius: 16,
+    marginTop: 16,
+    marginBottom: 20,
+    elevation: 4,
+    shadowColor: "#D32F2F",
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  blastBtnText: {
+    color: "white",
+    fontWeight: "900",
+    textTransform: "uppercase",
+    fontSize: 14,
+    letterSpacing: 1,
+    marginLeft: 10,
+  },
+  premiumHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    padding: 16,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 6,
+    marginBottom: 24,
+    borderBottomWidth: 3,
+    borderBottomColor: "#FF9933",
+  },
+  headerContent: { flexDirection: "row", alignItems: "center", flex: 1 },
+  emblem: { width: 32, height: 32, marginRight: 12 },
+  headerTitle: { fontWeight: "900", color: "#003366", fontSize: 13, textTransform: "uppercase", letterSpacing: 0.5 },
+  logoutBtn: { padding: 8, backgroundColor: "#FFF3E0", borderRadius: 12 },
+  pageTitle: { fontSize: 24, fontWeight: "900", color: "#003366", textAlign: "center", marginTop: 8 },
+  titleUnderline: { height: 4, width: 40, backgroundColor: "#FF9933", borderRadius: 2, alignSelf: "center", marginTop: 8, marginBottom: 24 },
+  statsRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 20 },
+  progressCard: {
+    width: "48%",
+    backgroundColor: "#fff",
+    padding: 16,
+    borderRadius: 20,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    borderWidth: 1,
+    borderColor: "#EEF2F6",
+  },
+  cardHeader: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+  iconBox: { width: 32, height: 32, borderRadius: 8, justifyContent: "center", alignItems: "center", marginRight: 8 },
+  cardTitle: { fontSize: 11, fontWeight: "800", color: "#666", textTransform: "uppercase" },
+  cardFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginTop: 8 },
+  percentageText: { fontSize: 18, fontWeight: "900", color: "#003366" },
+  statusText: { fontSize: 9, color: "#999", fontWeight: "700", textTransform: "uppercase" },
+  miniStatCard: {
+    width: "48%",
+    backgroundColor: "#fff",
+    padding: 16,
+    borderRadius: 20,
+    alignItems: "flex-start",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    borderWidth: 1,
+    borderColor: "#EEF2F6",
+  },
+  statLabel: { fontSize: 10, fontWeight: "800", color: "#666", textTransform: "uppercase", marginBottom: 4 },
+  statValue: { fontSize: 22, fontWeight: "900", color: "#003366" },
+  analyticsCard: {
+    backgroundColor: "#fff",
+    padding: 24,
+    borderRadius: 24,
+    marginBottom: 24,
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    borderWidth: 1,
+    borderColor: "#EEF2F6",
+    borderLeftWidth: 6,
+    borderLeftColor: "#FF9933",
+  },
+  analyticsTitle: { fontSize: 16, fontWeight: "900", color: "#003366", marginBottom: 20, textTransform: "uppercase", letterSpacing: 1 },
+  stateRow: { flexDirection: "row", alignItems: "center", marginBottom: 14 },
+  stateLabel: { width: 80, fontSize: 13, fontWeight: "800", color: "#444" },
+  progressWrapper: { flex: 1, marginHorizontal: 12 },
+  stateCount: { width: 40, fontSize: 13, fontWeight: "900", color: "#003366", textAlign: "right" },
+  gridTitle: { fontSize: 16, fontWeight: "900", color: "#003366", marginBottom: 16, textTransform: "uppercase", letterSpacing: 1.5, marginLeft: 4 },
   grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
   tile: {
     width: "48%",
-    backgroundColor: "#1E88E5",
-    padding: 16,
-    borderRadius: 10,
-    marginBottom: 15,
-    alignItems: "center"
-  },
-  tileText: { color: "white", marginTop: 8, fontWeight: "600" },
-  loginSummary: { flexDirection: "row", justifyContent: "space-around" },
-  barWrapper: { alignItems: "center" },
-  statCard: {
-    backgroundColor: "#e3f2fd",
-    padding: 16,
-    borderRadius: 10,
-    alignItems: "center",
-    marginBottom: 15
-  },
-  loginCount: { fontSize: 18, fontWeight: "bold", color: "#1E88E5" },
-  stateCard: {
     backgroundColor: "#fff",
     padding: 16,
-    borderRadius: 12,
-    marginBottom: 20,
-    elevation: 3
+    borderRadius: 20,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: "#EEF2F6",
   },
-
-  stateTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 15,
-    color: "#003366"
-  },
-
-  stateRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12
-  },
-
-  stateName: {
-    width: 90,              // ⭐ FIX
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#000"
-  },
-
-  progressWrapper: {
-    flex: 5,               // ⭐ FIX
-    marginHorizontal: 10
-  },
-
-  stateCount: {
-    flex: 1,               // ⭐ FIX
-    fontWeight: "bold",
-    textAlign: "right",
-    color: "#1E88E5"
-  }
+  tileIcon: { width: 44, height: 44, borderRadius: 14, justifyContent: "center", alignItems: "center", marginBottom: 12 },
+  tileText: { fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 },
+  emptyText: { textAlign: "center", color: "#999", paddingVertical: 20, fontWeight: "600" }
 });

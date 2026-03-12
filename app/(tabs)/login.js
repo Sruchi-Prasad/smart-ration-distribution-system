@@ -1,76 +1,133 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Picker } from "@react-native-picker/picker";
+import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   Alert,
-  Image,
+  Platform,
   ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
   View
 } from "react-native";
-import Toast from 'react-native-toast-message';
+import Toast from "react-native-toast-message";
+import { useAuth } from "../../context/AuthContext";
+import { API_BASE } from "../../utils/config";
+
+async function registerForPushNotificationsAsync() {
+  if (Platform.OS === 'web') {
+    console.log("Skipping push notification registration on web");
+    return null;
+  }
+
+  if (!Device.isDevice) {
+    alert("Must use physical device for notifications");
+    return;
+  }
+
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  let finalStatus = existingStatus;
+
+  if (existingStatus !== "granted") {
+    const { status } = await Notifications.requestPermissionsAsync();
+    finalStatus = status;
+  }
+
+  if (finalStatus !== "granted") {
+    alert("Notification permission not granted!");
+    return;
+  }
+
+  const token = (await Notifications.getExpoPushTokenAsync()).data;
+  return token;
+}
 
 export default function Login() {
   const router = useRouter();
+  const { login } = useAuth();
 
-  // States
-  const [loginMethod, setLoginMethod] = useState("password"); // "password" or "otp"
-  const [step, setStep] = useState(1); // OTP step
+  // states remain the same
+  const [loginMethod, setLoginMethod] = useState("password");
+  const [step, setStep] = useState(1);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [aadhaar, setAadhaar] = useState("");
   const [otp, setOtp] = useState("");
   const [role, setRole] = useState("");
-
   const [forgotPasswordStep, setForgotPasswordStep] = useState(false);
   const [forgotOtp, setForgotOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
-
+  const [rationCard, setRationCard] = useState("");
   // ✅ PASSWORD LOGIN
   const handleLogin = async () => {
-    if (!email || !password || !role) {
-      Toast.show({ type: "error", text1: "Email, password & role required ❌" });
+    const isUser = role.toLowerCase() === "user";
+    if ((!isUser && (!email || !password)) || (isUser && !rationCard) || !role) {
+      Toast.show({ type: "error", text1: isUser ? "Ration Card & role required ❌" : "Email, password & role required ❌" });
       return;
     }
 
     try {
-      const payload = { email, password, role };
+      // Normalize email & role
+      const payload = {
+        email: role.toLowerCase() === "user" ? undefined : email.toLowerCase(),
+        rationCard: role.toLowerCase() === "user" ? rationCard : undefined,
+        password,
+        role: role.toLowerCase()
+      };
       console.log("🚀 Sending login request:", payload);
 
-      const res = await fetch("http://localhost:8000/api/auth/login", {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
       const data = await res.json();
-
       console.log("📡 Login response status:", res.status);
       console.log("📡 Login response body:", data);
 
       if (res.status === 200 && data.user) {
         Toast.show({ type: "success", text1: "Login Successful ✅" });
+
         await AsyncStorage.setItem("user", JSON.stringify(data.user));
         await AsyncStorage.setItem("userId", data.user._id);
         await AsyncStorage.setItem("accessToken", data.accessToken);
         await AsyncStorage.setItem("refreshToken", data.refreshToken);
+
+        // ✅ Update Auth Context
+        await login(data.user);
+
+        const expoToken = await registerForPushNotificationsAsync();
+        if (expoToken) {
+          await fetch(`${API_BASE}/api/auth/save-token`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${data.accessToken}`
+            },
+            body: JSON.stringify({ token: expoToken })
+          });
+        }
 
         setTimeout(() => {
           if (data.user.role === "admin") router.push("/admin/AdminPanel");
           else if (data.user.role === "shopkeeper") router.push("/shopkeeper/ShopPanel");
           else router.push("/(tabs)/profile");
         }, 500);
+
       } else {
+        // Show backend message if present
         Toast.show({
           type: "error",
           text1: "Login Failed ❌",
           text2: data.message || "Invalid credentials",
         });
       }
+
     } catch (err) {
       console.log("❌ Login error:", err);
       Toast.show({
@@ -93,7 +150,7 @@ export default function Login() {
     }
 
     try {
-      const res = await fetch("http://localhost:8000/api/auth/send-otp", {
+      const res = await fetch(`${API_BASE}/api/auth/send-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, aadhaar, role })
@@ -119,7 +176,7 @@ export default function Login() {
     }
 
     try {
-      const res = await fetch("http://localhost:8000/api/auth/verify-otp", {
+      const res = await fetch(`${API_BASE}/api/auth/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, aadhaar, role, otp })
@@ -131,6 +188,9 @@ export default function Login() {
         await AsyncStorage.setItem("user", JSON.stringify(data.user));
         await AsyncStorage.setItem("accessToken", data.accessToken);
         await AsyncStorage.setItem("refreshToken", data.refreshToken);
+
+        // ✅ Update Auth Context
+        await login(data.user);
 
         setTimeout(() => {
           if (data.user.role === "admin") router.push("/admin/AdminPanel");
@@ -153,7 +213,7 @@ export default function Login() {
     }
 
     try {
-      const res = await fetch("http://localhost:8000/api/auth/forgot-password", {
+      const res = await fetch(`${API_BASE}/api/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, role })
@@ -179,7 +239,7 @@ export default function Login() {
     }
 
     try {
-      const res = await fetch("http://localhost:8000/api/auth/reset-password", {
+      const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, role, otp: forgotOtp, newPassword })
@@ -198,45 +258,61 @@ export default function Login() {
     }
   };
 
+  // ... all imports remain the same
+
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1, backgroundColor: "#f5f5f5" }}>
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingVertical: 40 }}>
         <View style={{
-          width: 450,
-          backgroundColor: "#E3F2FD",
-          borderRadius: 10,
-          elevation: 5,
-          padding: 24,
-          alignItems: "center"
+          width: "90%",
+          maxWidth: 450,
+          backgroundColor: "#fff",
+          borderRadius: 24,
+          elevation: 10,
+          padding: 32,
+          alignItems: "center",
+          shadowColor: "#000",
+          shadowOpacity: 0.1,
+          shadowRadius: 20,
+          borderBottomWidth: 6,
+          borderBottomColor: "#FF9933",
         }}>
-          {/* Logo */}
-          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 20 }}>
-            <Image source={require("../../assets/images/emblem.png")} style={{ width: 40, height: 40, marginRight: 10 }} />
-            <Text style={{ fontSize: 18, fontWeight: "bold", color: "#003366" }}>
-              SMART RATION DISTRIBUTION SYSTEM
-            </Text>
-          </View>
 
-          <MaterialCommunityIcons name="sack" size={64} color="#003366" style={{ marginBottom: 12 }} />
-          <Text style={{ fontSize: 24, fontWeight: "bold", color: "#003366", marginBottom: 20 }}>Login</Text>
+          <MaterialCommunityIcons name="sack" size={72} color="#003366" style={{ marginBottom: 16 }} />
+          <Text style={{ fontSize: 28, fontWeight: "900", color: "#003366", marginBottom: 24, textTransform: "uppercase", letterSpacing: 1 }}>Login</Text>
 
           {/* Toggle Login Method */}
-          <View style={{ flexDirection: "row", marginBottom: 20 }}>
-            <TouchableOpacity onPress={() => { setLoginMethod("password"); setStep(1); }} style={{ marginRight: 20 }}>
+          <View style={{ flexDirection: "row", marginBottom: 20, flexWrap: "wrap", justifyContent: "center" }}>
+            <TouchableOpacity onPress={() => { setLoginMethod("password"); setStep(1); }} style={{ marginRight: 20, marginBottom: 8 }}>
               <Text style={{ color: loginMethod === "password" ? "#003366" : "#777", fontWeight: "bold" }}>Password Login</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => { setLoginMethod("otp"); setStep(1); }}>
+            <TouchableOpacity onPress={() => { setLoginMethod("otp"); setStep(1); }} style={{ marginBottom: 8 }}>
               <Text style={{ color: loginMethod === "otp" ? "#003366" : "#777", fontWeight: "bold" }}>OTP Login</Text>
             </TouchableOpacity>
           </View>
 
-          {/* PASSWORD LOGIN */}
-          {loginMethod === "password" && !forgotPasswordStep && (
+          {/* LOGIN FORMS */}
+          {(loginMethod === "password" && !forgotPasswordStep) && (
             <>
-              <Text style={styles.label}>Email</Text>
-              <TextInput style={styles.input} placeholder="Email" keyboardType="email-address" value={email} onChangeText={setEmail} />
-              <Text style={styles.label}>Password</Text>
-              <TextInput style={styles.input} placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} />
+              {role.toLowerCase() === "user" ? (
+                <>
+                  <Text style={styles.label}>Ration Card Number</Text>
+                  <TextInput style={styles.input} placeholder="Ration Card Number" value={rationCard} onChangeText={setRationCard} />
+                </>
+              ) : (
+                <>
+                  <Text style={styles.label}>Email</Text>
+                  <TextInput style={styles.input} placeholder="Email" keyboardType="email-address" value={email} onChangeText={setEmail} />
+                </>
+              )}
+
+              {role.toLowerCase() !== "user" && (
+                <>
+                  <Text style={styles.label}>Password</Text>
+                  <TextInput style={styles.input} placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} />
+                </>
+              )}
+
               <Text style={styles.label}>Role</Text>
               <Picker selectedValue={role} onValueChange={setRole} style={styles.input}>
                 <Picker.Item label="Select Role" value="" />
@@ -256,15 +332,16 @@ export default function Login() {
           )}
 
           {/* OTP LOGIN */}
-          {loginMethod === "otp" && !forgotPasswordStep && (
+          {(loginMethod === "otp" && !forgotPasswordStep) && (
             <>
               {step === 1 ? (
                 <>
-                  {/** Aadhaar + Email + Role inputs */}
                   <Text style={styles.label}>Aadhaar (optional)</Text>
                   <TextInput style={styles.input} placeholder="Enter Aadhaar" keyboardType="numeric" value={aadhaar} onChangeText={setAadhaar} />
+
                   <Text style={styles.label}>Email</Text>
                   <TextInput style={styles.input} placeholder="Email" keyboardType="email-address" value={email} onChangeText={setEmail} />
+
                   <Text style={styles.label}>Role</Text>
                   <Picker selectedValue={role} onValueChange={setRole} style={styles.input}>
                     <Picker.Item label="Select Role" value="" />
@@ -294,16 +371,19 @@ export default function Login() {
             <>
               <Text style={styles.label}>Enter OTP</Text>
               <TextInput style={styles.input} placeholder="OTP" keyboardType="numeric" value={forgotOtp} onChangeText={setForgotOtp} />
+
               <Text style={styles.label}>New Password</Text>
               <TextInput style={styles.input} placeholder="New Password" secureTextEntry value={newPassword} onChangeText={setNewPassword} />
+
               <TouchableOpacity style={styles.button} onPress={handleResetPassword}>
                 <Text style={styles.buttonText}>Reset Password</Text>
               </TouchableOpacity>
             </>
           )}
+
           {/* Registration Link */}
           <TouchableOpacity onPress={() => router.push("/(tabs)/Registration")} style={{ marginTop: 20 }}>
-            <Text style={{ fontSize: 14, color: "#00796B", fontWeight: "600" }}>
+            <Text style={{ fontSize: 14, color: "#00796B", fontWeight: "600", textAlign: "center" }}>
               Registration before login
             </Text>
           </TouchableOpacity>
@@ -316,35 +396,45 @@ export default function Login() {
 const styles = {
   label: {
     alignSelf: "flex-start",
-    fontSize: 14,
-    fontWeight: "bold",
+    fontSize: 15,
+    fontWeight: "800",
     color: "#003366",
-    marginBottom: 4,
-    marginTop: 12,
+    marginBottom: 6,
+    marginTop: 16,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   input: {
     width: "100%",
-    height: 48,
-    backgroundColor: "#ffffff",
-    borderRadius: 6,
-    paddingHorizontal: 12,
+    height: 52,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    paddingHorizontal: 16,
     fontSize: 16,
-    borderWidth: 1,
-    borderColor: "#ccc",
+    borderWidth: 1.5,
+    borderColor: "#EEF2F6",
+    marginBottom: 4,
+    color: "#003366",
+    fontWeight: "600",
   },
   button: {
     width: "100%",
-    height: 48,
+    height: 54,
     backgroundColor: "#003366",
-    borderRadius: 6,
+    borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 24,
-    elevation: 3,
+    marginTop: 20,
+    elevation: 4,
+    shadowColor: "#003366",
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
   buttonText: {
     color: "white",
     fontSize: 16,
-    fontWeight: "bold",
-  }
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
 };

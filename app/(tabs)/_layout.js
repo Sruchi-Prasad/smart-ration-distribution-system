@@ -2,10 +2,14 @@ import { Stack } from "expo-router";
 import { View } from "react-native";
 import Toast from "react-native-toast-message";
 import FooterNav from "./myFooter"; // adjust path if needed
+import MyHeader from "./myHeader";
 
 export default function Layout() {
   return (
     <View style={{ flex: 1 }}>
+      {/* Global Header */}
+      <MyHeader />
+
       {/* Navigation stack */}
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
@@ -26,10 +30,26 @@ export default function Layout() {
         <Stack.Screen name="profile" />
         <Stack.Screen name="distribution" />
         <Stack.Screen name="balance" />
+        <Stack.Screen name="kycForm" />
+        <Stack.Screen name="Marketplace" />
+        <Stack.Screen name="marketplaceHistory" />
+        <Stack.Screen name="ShopLocator" />
       </Stack>
 
-      {/* Global Toast */}
-      <Toast />
+      {/* Global Toast with high zIndex - Rendered at end to ensure it's on top */}
+      <View
+        pointerEvents="box-none"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 9999,
+        }}
+      >
+        <Toast />
+      </View>
 
       {/* Global Footer */}
       <FooterNav />

@@ -1,61 +1,30 @@
-import { Feather, FontAwesome, MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useAuth } from "../../context/AuthContext";
+import { API_BASE } from "../../utils/config";
+import { fetchWithAuth } from "../../utils/fetchWithAuth";
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { logout, user: authUser } = useAuth();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const profileFields = [
-    user?.fullName,
-    user?.email,
-    user?.phone,
-    user?.dateOfBirth,
-    user?.aadhaarNumber,
-    user?.rationCard,
-    user?.members,
-    user?.balance?.rice,
-    user?.balance?.wheat,
-  ];
 
-  const filledCount = profileFields.filter(Boolean).length;
-  const completion = Math.round((filledCount / profileFields.length) * 100);
-  // 🔹 Fetch user + family members from backend
   useEffect(() => {
     const fetchUser = async () => {
       try {
         const storedUser = await AsyncStorage.getItem("user");
-        const token = await AsyncStorage.getItem("accessToken");
-        if (!storedUser || !token) return;
-
         const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
-
-        const res = await fetch(`http://localhost:8000/api/user/${parsedUser._id}`, {
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
-          },
-        });
-
-        useEffect(() => {
-          const loadUser = async () => {
-            const storedUser = await AsyncStorage.getItem("user");
-            console.log("Loaded user from AsyncStorage:", storedUser);
-            if (storedUser) {
-              setUser(JSON.parse(storedUser));
-            }
-          };
-          loadUser();
-        }, []);
+        const res = await fetchWithAuth(`${API_BASE}/api/user/${parsedUser._id}`);
 
         if (res.ok) {
           const data = await res.json();
-          setUser(data); // ✅ includes members array
+          setUser(data);
         } else {
-          console.error("Failed to fetch user:", res.status);
+          setUser(parsedUser);
         }
       } catch (err) {
         console.error("Error fetching user:", err);
@@ -63,256 +32,236 @@ export default function ProfileScreen() {
         setLoading(false);
       }
     };
-
     fetchUser();
   }, []);
 
   const handleLogout = async () => {
-    await AsyncStorage.removeItem("user");
-    await AsyncStorage.removeItem("accessToken");
-    router.replace("/login");
+    await logout();
   };
 
   if (loading) {
-    return <Text style={{ textAlign: "center", marginTop: 20 }}>Loading profile...</Text>;
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Loading Profile...</Text>
+      </View>
+    );
   }
 
+  const profileFields = [
+    user?.fullName, user?.email, user?.phone, user?.dateOfBirth,
+    user?.aadhaarNumber, user?.rationCard, user?.members,
+    user?.balance?.rice, user?.balance?.wheat,
+  ];
+  const completion = Math.round((profileFields.filter(Boolean).length / profileFields.length) * 100);
+
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.card}>
-        <View style={styles.card}>
-          {/* Emblem + Portal Title */}
-          <View style={styles.headerRow}>
-            <Image source={require("../../assets/images/emblem.png")} style={styles.emblem} />
-            <Text style={styles.portalTitle}>SMART RATION DISTRIBUTION SYSTEM</Text>
-          </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#F4F7FB" }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-          {/* Status Banner */}
-          <View style={styles.banner}>
-            <Text style={styles.bannerText}>✅ Eligible for January Distribution</Text>
-
-          </View>
-
-          {/* Avatar + Name + Email */}
-          <View style={styles.avatarContainer}>
+        {/* HEADER SECTION */}
+        <View style={styles.headerCard}>
+          <View style={styles.avatarWrapper}>
             <View style={styles.avatar}>
-              <FontAwesome name="user" size={40} color="#fff" />
+              <MaterialIcons name="person" size={50} color="white" />
             </View>
-            <Text style={styles.name}>{user?.fullName || "Name not available"}</Text>
-            <Text style={styles.email}>{user?.email || "Email not available"}</Text>
+            <TouchableOpacity style={styles.editAvatar}>
+              <MaterialIcons name="edit" size={16} color="white" />
+            </TouchableOpacity>
           </View>
+          <Text style={styles.userName}>{user?.fullName || "Guest User"}</Text>
+          <Text style={styles.userEmail}>{user?.email || "No email linked"}</Text>
 
-          <View style={{ marginBottom: 20, alignItems: "center" }}>
-            <Text style={{ fontWeight: "bold", fontSize: 16 }}>
-              Profile Completion: {completion}%
-            </Text>
-            <View style={{
-              height: 10,
-              width: "80%",
-              backgroundColor: "#ddd",
-              borderRadius: 5,
-              marginTop: 8,
-              overflow: "hidden"
-            }}>
-              <View style={{
-                height: "100%",
-                width: `${completion}%`,
-                backgroundColor: "#4CAF50",
-              }} />
+          <View style={styles.completionContainer}>
+            <View style={styles.completionLabelRow}>
+              <Text style={styles.completionLabel}>Profile Integrity</Text>
+              <Text style={styles.completionValue}>{completion}%</Text>
             </View>
-          </View>
-
-
-          {/* Header */}
-          {/* Personal Info Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <FontAwesome name="user" size={20} color="#030356" style={styles.sectionIcon} />
-              <Text style={styles.sectionTitle}>Personal Information</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <MaterialIcons name="calendar-today" size={18} color="#555" />
-              <Text style={styles.detail}>Date-Of-Birth :
-                {user?.dateOfBirth ? new Date(user.dateOfBirth).toLocaleDateString() : "Not provided"}
-              </Text>
-            </View>
-            <View style={styles.detailRow}>
-              <MaterialIcons name="phone" size={18} color="#555" />
-              <Text style={styles.detail}>Phone-no :  {user?.phone || "Not provided"}</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <MaterialIcons name="location-on" size={18} color="#555" />
-              <Text style={styles.detail}>Country :
-                {user?.city || "Not provided"}, {user?.country || "Not provided"}
-              </Text>
-            </View>
-            <View style={styles.detailRow}>
-              <MaterialIcons name="access-time" size={18} color="#555" />
-              <Text style={styles.detail}>Last Login :
-                {user?.lastLogin ? new Date(user.lastLogin).toLocaleString() : "Not available"}
-              </Text>
-            </View>
-
-          </View>
-
-          {/* Document Info Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <FontAwesome name="id-card" size={20} color="#030356" style={styles.sectionIcon} />
-              <Text style={styles.sectionTitle}>Document Information</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <MaterialIcons name="credit-card" size={18} color="#555" />
-              <Text style={styles.detail}> Ration Card no. : {user?.rationCard || "Not provided"}</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <MaterialIcons name="fingerprint" size={18} color="#555" />
-              <Text style={styles.detail}>Aadhaar card no. : {user?.aadhaarNumber
-                ? user.aadhaarNumber.replace(/^(\d{4})\d{4}(\d{4})$/, "$1 **** $2")
-                : "Not provided"}
-              </Text>
-
-            </View>
-          </View>
-
-          {/* Household Info Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <FontAwesome name="users" size={20} color="#030356" style={styles.sectionIcon} />
-              <Text style={styles.sectionTitle}>Household Information</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <FontAwesome name="users" size={18} color="#555" />
-              <Text style={styles.detail}>Members:  {user?.members || "Not provided"} members</Text>
-            </View>
-          </View>
-
-          {/* Distribution Info Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <MaterialIcons name="inventory" size={20} color="#030356" style={styles.sectionIcon} />
-              <Text style={styles.sectionTitle}>Distribution Information</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <MaterialIcons name="inventory" size={18} color="#555" />
-              <Text style={styles.detail}>
-                Rice: {user?.balance?.rice || 0}kg, Wheat: {user?.balance?.wheat || 0}kg
-              </Text>
-            </View>
-            <View style={styles.detailRow}>
-              <MaterialIcons name="event" size={18} color="#555" />
-              <Text style={styles.detail}>Last Distribution: {user?.lastDistribution
-                ? new Date(user.lastDistribution).toLocaleDateString()
-                : "Not distributed yet"}
-              </Text>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${completion}%` }]} />
             </View>
           </View>
         </View>
-        {/* Family Members Section */}
-        {Array.isArray(user?.memberDetails) && user.memberDetails.map(
-          (member, index) => (
-            <View key={index} style={styles.memberRow}>
-              <View style={styles.avatarCircle}>
-                <FontAwesome name="user" size={22} color="#fff" />
-                <Text style={styles.avatarText}>{member.initials}</Text>
-              </View>
-              <View>
-                <Text style={styles.memberName}>{member.name}</Text>
-                <Text style={styles.memberDetail}>
-                  {member.relation} • {member.age} yrs
-                </Text>
-              </View>
-            </View>
-          ))}
 
-        {/* Navigation Tiles */}
+        {/* STATUS BANNER */}
+        <View style={styles.statusBanner}>
+          <MaterialIcons name="verified" size={20} color="white" />
+          <Text style={styles.statusText}>VERIFIED RATION BENEFICIARY</Text>
+        </View>
+
+        {/* DETAILS SECTION */}
+        <DetailSection title="Personal Identity" icon="badge">
+          <DetailRow icon="cake" label="Birth Date" value={user?.dateOfBirth ? new Date(user.dateOfBirth).toLocaleDateString() : "N/A"} />
+          <DetailRow icon="phone" label="Contact" value={user?.phone || "N/A"} />
+          <DetailRow icon="location-city" label="Residence" value={`${user?.city || "N/A"}, ${user?.country || "N/A"}`} />
+          <DetailRow icon="history" label="Last Session" value={user?.lastLogin ? new Date(user.lastLogin).toLocaleTimeString() : "N/A"} />
+        </DetailSection>
+
+        <DetailSection title="Quota & Allocation" icon="shopping-basket">
+          <DetailRow icon="inventory" label="Ration Card" value={user?.rationCard || "N/A"} />
+          <DetailRow icon="fingerprint" label="Aadhaar" value={user?.aadhaarNumber ? user.aadhaarNumber.replace(/^(\d{4})\d{4}(\d{4})$/, "$1 **** $2") : "N/A"} />
+          <DetailRow icon="groups" label="Household Size" value={`${user?.members || 0} Members`} />
+          <DetailRow icon="scale" label="Current Balance" value={`Rice: ${user?.balance?.rice || 0}kg • Wheat: ${user?.balance?.wheat || 0}kg`} />
+        </DetailSection>
+
+        {/* MENU GRID */}
         <View style={styles.menuGrid}>
-          <TouchableOpacity style={styles.menuTile} onPress={() => router.push("/documents")}>
-            <MaterialIcons name="description" size={24} color="#030356" />
-            <Text style={styles.tileText}>Documents</Text>
-            <Text style={styles.tileSubText}>View & upload documents</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuTile} onPress={() => router.push("/support")}>
-            <Feather name="help-circle" size={24} color="#030356" />
-            <Text style={styles.tileText}>Help & Support</Text>
-            <Text style={styles.tileSubText}>FAQs and grievance</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuTile} onPress={() => router.push("/settings")}>
-            <MaterialIcons name="settings" size={24} color="#030356" />
-            <Text style={styles.tileText}>Settings</Text>
-            <Text style={styles.tileSubText}>App preferences</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuTile} onPress={() => router.push("/")}>
-            <Feather name="home" size={24} color="#030356" />
-            <Text style={styles.tileText}>Home</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuTile} onPress={() => router.push("/history")}>
-            <MaterialIcons name="history" size={24} color="#030356" />
-            <Text style={styles.tileText}>History</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuTile} onPress={() => router.push("/update-info")}>
-            <Feather name="edit" size={24} color="#030356" />
-            <Text style={styles.tileText}>Update Info</Text>
-          </TouchableOpacity>
+          <MenuTile icon="description" title="Documents" sub="ID & Residency" route="/documents" />
+          <MenuTile icon="contact-support" title="Support" sub="Help & Grievance" route="/support" />
+          <MenuTile icon="settings" title="Settings" sub="Privacy & UI" route="/settings" />
+          <MenuTile icon="history" title="History" sub="Activity Log" route="/history" />
         </View>
 
-        {/* Logout Button */}
+        {/* LOGOUT */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <MaterialIcons name="logout" size={24} color="white" />
-          <Text style={styles.logoutText}>Logout</Text>
+          <MaterialIcons name="logout" size={22} color="white" />
+          <Text style={styles.logoutText}>Secure Logout</Text>
         </TouchableOpacity>
-      </View>
-    </ScrollView>
+
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
+const DetailSection = ({ title, icon, children }) => (
+  <View style={styles.sectionCard}>
+    <View style={styles.sectionHeader}>
+      <MaterialIcons name={icon} size={22} color="#003366" />
+      <Text style={styles.sectionTitle}>{title}</Text>
+    </View>
+    {children}
+  </View>
+);
+
+const DetailRow = ({ icon, label, value }) => (
+  <View style={styles.detailRow}>
+    <MaterialIcons name={icon} size={18} color="#64748B" />
+    <View style={styles.detailTextWrapper}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Text style={styles.detailValue}>{value}</Text>
+    </View>
+  </View>
+);
+
+const MenuTile = ({ icon, title, sub, route }) => {
+  const router = useRouter();
+  return (
+    <TouchableOpacity style={styles.menuTile} onPress={() => router.push(route)}>
+      <View style={styles.tileIconBox}>
+        <MaterialIcons name={icon} size={24} color="#003366" />
+      </View>
+      <Text style={styles.tileTitle}>{title}</Text>
+      {sub && <Text style={styles.tileSub}>{sub}</Text>}
+    </TouchableOpacity>
+  );
+};
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f5f5f5", padding: 15 },
-  card: { backgroundColor: "#fff", borderRadius: 12, padding: 20, elevation: 4 },
-
-  memberRow: { flexDirection: "row", alignItems: "center", marginBottom: 15 },
-  avatarCircle: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: "#030356", justifyContent: "center", alignItems: "center",
-    marginRight: 10
+  scrollContent: { padding: 20, paddingBottom: 40 },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F4F7FB" },
+  loadingText: { fontSize: 16, fontWeight: "800", color: "#003366" },
+  headerCard: {
+    backgroundColor: "white",
+    borderRadius: 30,
+    padding: 24,
+    alignItems: "center",
+    elevation: 8,
+    borderBottomWidth: 6,
+    borderBottomColor: "#FF9933",
+    marginBottom: 20,
   },
-  avatarText: { color: "#fff", fontWeight: "bold" },
-  memberName: { fontSize: 16, fontWeight: "600", color: "#222" },
-  memberDetail: { fontSize: 14, color: "#555" },
-
-  menuGrid: { marginTop: 20 },
-  menuTile: { backgroundColor: "#E3F2FD", borderRadius: 10, padding: 15, marginBottom: 15 },
-  tileText: { fontSize: 16, fontWeight: "600", color: "#030356" },
-  tileSubText: { fontSize: 12, color: "#555", marginTop: 4 },
-
+  avatarWrapper: { marginBottom: 16 },
+  avatar: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "#003366",
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 10,
+    borderWidth: 4,
+    borderColor: "#F1F5F9",
+  },
+  editAvatar: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: "#FF9933",
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 3,
+    borderColor: "white",
+  },
+  userName: { fontSize: 24, fontWeight: "900", color: "#003366" },
+  userEmail: { fontSize: 14, fontWeight: "600", color: "#64748B", marginTop: 4 },
+  completionContainer: { width: "100%", marginTop: 24 },
+  completionLabelRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
+  completionLabel: { fontSize: 12, fontWeight: "800", color: "#64748B", textTransform: "uppercase" },
+  completionValue: { fontSize: 12, fontWeight: "900", color: "#128807" },
+  progressTrack: { height: 10, backgroundColor: "#E2E8F0", borderRadius: 5, overflow: "hidden" },
+  progressFill: { height: "100%", backgroundColor: "#128807" },
+  statusBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#128807",
+    padding: 12,
+    borderRadius: 16,
+    marginBottom: 20,
+    elevation: 4,
+  },
+  statusText: { color: "white", fontWeight: "900", fontSize: 12, marginLeft: 8, letterSpacing: 1 },
+  sectionCard: {
+    backgroundColor: "white",
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 20,
+    elevation: 4,
+    borderLeftWidth: 6,
+    borderLeftColor: "#003366",
+  },
+  sectionHeader: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
+  sectionTitle: { fontSize: 15, fontWeight: "900", color: "#003366", marginLeft: 12, textTransform: "uppercase" },
+  detailRow: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
+  detailTextWrapper: { marginLeft: 14 },
+  detailLabel: { fontSize: 11, fontWeight: "800", color: "#64748B", textTransform: "uppercase" },
+  detailValue: { fontSize: 15, fontWeight: "700", color: "#003366", marginTop: 2 },
+  menuGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 20 },
+  menuTile: {
+    width: "48%",
+    backgroundColor: "white",
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
+    alignItems: "center",
+    elevation: 4,
+    borderBottomWidth: 4,
+    borderBottomColor: "#EEF2F6",
+  },
+  tileIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "#F8FAFC",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  tileTitle: { fontSize: 14, fontWeight: "900", color: "#003366" },
+  tileSub: { fontSize: 10, fontWeight: "600", color: "#64748B", marginTop: 4, textAlign: "center" },
   logoutButton: {
-    flexDirection: "row", justifyContent: "center", alignItems: "center",
-    backgroundColor: "#E53935", borderRadius: 10, padding: 15, marginTop: 20
+    flexDirection: "row",
+    backgroundColor: "#D32F2F",
+    padding: 18,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 6,
+    shadowColor: "#D32F2F",
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
   },
-  logoutText: { color: "white", fontSize: 16, fontWeight: "600", marginLeft: 8 },
-  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 15 },
-  emblem: { width: 40, height: 40, marginRight: 10 },
-  portalTitle: { fontSize: 16, fontWeight: "bold", color: "#003366" },
-  banner: { backgroundColor: "#4CAF50", padding: 10, borderRadius: 8, marginBottom: 10 },
-  bannerText: { color: "white", fontWeight: "600", textAlign: "center" },
-  header: { fontSize: 24, fontWeight: "bold", textAlign: "center", marginBottom: 15, color: "#030356" },
-  avatarContainer: { alignItems: "center", marginBottom: 20 },
-  avatar: { backgroundColor: "#030356", width: 80, height: 80, borderRadius: 40, justifyContent: "center", alignItems: "center", marginBottom: 10 },
-  name: { fontSize: 20, fontWeight: "bold" },
-  email: { fontSize: 14, color: "#555" },
-  section: { backgroundColor: "#fff", padding: 12, borderRadius: 8, marginBottom: 15, borderWidth: 1, borderColor: "#ddd" },
-  sectionHeader: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
-  sectionIcon: { marginRight: 8 },
-  sectionTitle: { fontSize: 18, fontWeight: "bold", color: "#030356" },
-  detailRow: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
-  detail: { fontSize: 16, color: "#222", marginLeft: 6 },
-  divider: { height: 1, backgroundColor: "#ccc", marginVertical: 10 },
-  menuGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginTop: 10, paddingBottom: 20 },
-  menuTile: { width: "48%", backgroundColor: "#E3F2FD", borderRadius: 10, paddingVertical: 15, paddingHorizontal: 10, marginBottom: 10, alignItems: "center", elevation: 2 },
-  tileText: { marginTop: 5, fontSize: 14, fontWeight: "600", color: "#030356" },
+  logoutText: { color: "white", fontWeight: "900", fontSize: 16, marginLeft: 12, textTransform: "uppercase", letterSpacing: 1 }
 });

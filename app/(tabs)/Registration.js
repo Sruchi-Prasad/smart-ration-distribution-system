@@ -1,9 +1,9 @@
+import { Feather, MaterialIcons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
   Alert,
-  Image,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -12,12 +12,12 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import { API_BASE } from "../../utils/config";
 
 export default function Registration() {
   const router = useRouter();
 
-  // Common states
-  const [role, setRole] = useState(""); // "user" or "shopkeeper"
+  const [role, setRole] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -28,13 +28,10 @@ export default function Registration() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [memberDetails, setMemberDetails] = useState([]);
 
-  // User-specific
   const [rationCard, setRationCard] = useState("");
   const [aadhaarNumber, setAadhaarNumber] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [members, setMembers] = useState("");
-
-  // Shopkeeper-specific
   const [shopName, setShopName] = useState("");
 
   const handleRegister = async () => {
@@ -54,12 +51,11 @@ export default function Registration() {
       }
       for (let i = 0; i < memberDetails.length; i++) {
         if (!memberDetails[i].name || !memberDetails[i].age) {
-          Alert.alert("Error", `Please fill details for Member ${i + 1}`);
+          Alert.alert("Error", `Details required for Member ${i + 1}`);
           return;
         }
       }
     }
-
 
     let url = "";
     let body = {};
@@ -70,47 +66,15 @@ export default function Registration() {
         return;
       }
       if (!/^\d{12}$/.test(aadhaarNumber)) {
-        Alert.alert("Error", "Aadhaar number must be 12 digits");
+        Alert.alert("Error", "Aadhaar must be 12 digits");
         return;
       }
-      url = "http://localhost:8000/api/auth/register";
-      body = {
-        fullName,
-        rationCard,
-        aadhaarNumber,
-        members: Number(members),
-        email,
-        phone,
-        country,
-        state,
-        city,
-        password,
-        dateOfBirth: new Date(dateOfBirth),
-        memberDetails,
-        role,
-      };
+      url = `${API_BASE}/api/auth/register`;
+      body = { fullName, rationCard, aadhaarNumber, members: Number(members), email, phone, country, state, city, password, dateOfBirth: new Date(dateOfBirth), memberDetails, role };
+    } else {
+      url = `${API_BASE}/api/auth/register-shopkeeper`;
+      body = { fullName, email, password, shopName, state, phone, country, city, role };
     }
-    else if (role === "shopkeeper") {
-      if (!shopName.trim()) {
-        Alert.alert("Error", "Shop name is required for shopkeepers");
-        return;
-      }
-      url = "http://localhost:8000/api/auth/register-shopkeeper";
-      body = {
-        fullName,
-        email,
-        password,
-        shopName,
-        state,
-        phone,
-        country,
-        city,
-        role
-      };
-    }
-
-
-    console.log("Registering with:", body); // ✅ Debug log
 
     try {
       const response = await fetch(url, {
@@ -118,144 +82,187 @@ export default function Registration() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
       });
-
       const data = await response.json();
-      Alert.alert("Response", data.message);
-
-      if (response.status === 201) {
-        router.push("/(tabs)/login");
-      }
+      Alert.alert("Registration", data.message);
+      if (response.status === 201) router.push("/login");
     } catch (error) {
-      console.error("Registration error:", error);
-      Alert.alert("Error", "Something went wrong");
+      Alert.alert("Error", "Backend synchronization failed");
     }
   };
 
   return (
-    <SafeAreaView style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={styles.container}>
-        {/* Header */}
-        <View style={styles.headerRow}>
-          <Image source={require("../../assets/images/emblem.png")} style={styles.emblem} />
-          <Text style={styles.title}>SMART RATION DISTRIBUTION SYSTEM</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+
+        {/* HEADER */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <MaterialIcons name="arrow-back-ios" size={20} color="#003366" />
+            <Text style={styles.backText}>Return</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Account Setup</Text>
         </View>
 
-        <Text style={styles.sectionTitle}>Registration</Text>
+        <View style={styles.card}>
+          <Text style={styles.formTitle}>Official Registry</Text>
+          <Text style={styles.formSubtitle}>Enter credentials to access PDS services</Text>
 
-        {/* Role Picker */}
-        <Picker selectedValue={role} onValueChange={(itemValue) => setRole(itemValue)} style={styles.input}>
-          <Picker.Item label="Select Role" value="" />
-          <Picker.Item label="User" value="user" />
-          <Picker.Item label="Shopkeeper" value="shopkeeper" />
-        </Picker>
+          {/* ROLE PICKER */}
+          <Text style={styles.label}>Identify Your Role</Text>
+          <View style={styles.pickerContainer}>
+            <Feather name="shield" size={18} color="#003366" />
+            <Picker selectedValue={role} onValueChange={(val) => setRole(val)} style={styles.picker}>
+              <Picker.Item label="Select Designation" value="" />
+              <Picker.Item label="Citizen / User" value="user" />
+              <Picker.Item label="Shopkeeper / PDS Official" value="shopkeeper" />
+            </Picker>
+          </View>
 
-        {/* Common Fields */}
-        <TextInput style={styles.input} placeholder="Full Name" value={fullName} onChangeText={setFullName} />
-        <TextInput style={styles.input} placeholder="Email" keyboardType="email-address" value={email} onChangeText={setEmail} />
-        <TextInput style={styles.input} placeholder="Phone Number" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
-        <TextInput style={styles.input} placeholder="Country" value={country} onChangeText={setCountry} />
-        <Picker selectedValue={state} onValueChange={(itemValue) => setState(itemValue)} style={styles.input}>
-          <Picker.Item label="Select State" value="" />
-          <Picker.Item label="Maharashtra" value="Maharashtra" />
-          <Picker.Item label="Kerala" value="Kerala" />
-          <Picker.Item label="Tamil Nadu" value="Tamil Nadu" />
-          <Picker.Item label="Delhi" value="Delhi" />
-          <Picker.Item label="West Bengal" value="West Bengal" />
-          <Picker.Item label="Other" value="Other" />
-        </Picker>
-        <TextInput style={styles.input} placeholder="City" value={city} onChangeText={setCity} />
-        <TextInput style={styles.input} placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} />
-        <TextInput style={styles.input} placeholder="Confirm Password" secureTextEntry value={confirmPassword} onChangeText={setConfirmPassword} />
+          {/* COMMON FIELDS */}
+          <Text style={styles.label}>Full Identity Name</Text>
+          <InputField icon="user" placeholder="Enter Government Name" value={fullName} onChange={setFullName} />
 
-        {/* User-specific Fields */}
-        {role === "user" && (
-          <>
-            <TextInput style={styles.input} placeholder="Aadhaar Number" keyboardType="numeric" value={aadhaarNumber} onChangeText={setAadhaarNumber} />
-            <TextInput style={styles.input} placeholder="Ration Card Number" value={rationCard} onChangeText={setRationCard} />
-            <TextInput style={styles.input} placeholder="Date of Birth (YYYY-MM-DD)" value={dateOfBirth} onChangeText={setDateOfBirth} />
-            <TextInput
-              style={styles.input}
-              placeholder="Number of Members"
-              keyboardType="numeric"
-              value={members}
-              onChangeText={(val) => {
+          <Text style={styles.label}>Contact Information</Text>
+          <InputField icon="mail" placeholder="official@email.gov" value={email} onChange={setEmail} keyboard="email-address" />
+          <InputField icon="phone" placeholder="+91 Phone Number" value={phone} onChange={setPhone} keyboard="phone-pad" />
+
+          {/* LOCATION */}
+          <Text style={styles.label}>Geographic Location</Text>
+          <InputField icon="map-pin" placeholder="Country" value={country} onChange={setCountry} />
+          <View style={styles.pickerContainer}>
+            <Feather name="activity" size={18} color="#003366" />
+            <Picker selectedValue={state} onValueChange={(val) => setState(val)} style={styles.picker}>
+              <Picker.Item label="Select State / UT" value="" />
+              <Picker.Item label="Maharashtra" value="Maharashtra" />
+              <Picker.Item label="Kerala" value="Kerala" />
+              <Picker.Item label="Tamil Nadu" value="Tamil Nadu" />
+              <Picker.Item label="Delhi" value="Delhi" />
+              <Picker.Item label="Other" value="Other" />
+            </Picker>
+          </View>
+          <InputField icon="home" placeholder="Resident City" value={city} onChange={setCity} />
+
+          <Text style={styles.label}>Security Protocol</Text>
+          <InputField icon="lock" placeholder="Password (8+ chars)" value={password} onChange={setPassword} secure />
+          <InputField icon="check-square" placeholder="Verify Password" value={confirmPassword} onChange={setConfirmPassword} secure />
+
+          {/* ROLE SPECIFIC */}
+          {role === "user" ? (
+            <>
+              <Text style={styles.label}>Document Verification</Text>
+              <InputField icon="credit-card" placeholder="12-Digit Aadhaar ID" value={aadhaarNumber} onChange={setAadhaarNumber} keyboard="numeric" />
+              <InputField icon="file-text" placeholder="Ration Card Identification" value={rationCard} onChange={setRationCard} />
+              <InputField icon="calendar" placeholder="DOB (YYYY-MM-DD)" value={dateOfBirth} onChange={setDateOfBirth} />
+
+              <Text style={styles.label}>Household Census</Text>
+              <InputField icon="users" placeholder="Total Occupants" value={members} onChange={(val) => {
                 setMembers(val);
                 const num = parseInt(val) || 0;
-                setMemberDetails(Array.from({ length: num }, () => ({ name: "", age: "" })));
-              }}
-            />
-          </>
-        )}
+                setMemberDetails(Array.from({ length: Math.min(num, 15) }, () => ({ name: "", age: "" })));
+              }} keyboard="numeric" />
 
-        {memberDetails.length > 0 && (
-          <View style={{ marginTop: 16 }}>
-            <Text style={{ fontSize: 16, fontWeight: "600", marginBottom: 8 }}>
-              Members Detail
-            </Text>
-            {memberDetails.map((member, index) => (
-              <View key={index} style={{ marginBottom: 12 }}>
-                <Text style={styles.label}>Member {index + 1} Name</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter name"
-                  value={member.name}
-                  onChangeText={(val) => {
-                    const updated = [...memberDetails];
-                    updated[index].name = val;
-                    setMemberDetails(updated);
-                  }}
-                />
+              {memberDetails.length > 0 && (
+                <View style={styles.memberBox}>
+                  <Text style={styles.memberHeader}>Member Registry List</Text>
+                  {memberDetails.map((member, idx) => (
+                    <View key={idx} style={styles.memberRow}>
+                      <Text style={styles.miniLabel}>Member {idx + 1}</Text>
+                      <InputField icon="user" placeholder="Full Name" value={member.name} onChange={(v) => {
+                        const update = [...memberDetails]; update[idx].name = v; setMemberDetails(update);
+                      }} />
+                      <InputField icon="clock" placeholder="Age" value={member.age} onChange={(v) => {
+                        const update = [...memberDetails]; update[idx].age = v; setMemberDetails(update);
+                      }} keyboard="numeric" />
+                    </View>
+                  ))}
+                </View>
+              )}
+            </>
+          ) : role === "shopkeeper" ? (
+            <>
+              <Text style={styles.label}>PDS Establishment</Text>
+              <InputField icon="shopping-bag" placeholder="Official Shop Name" value={shopName} onChange={setShopName} />
+            </>
+          ) : null}
 
-                <Text style={styles.label}>Member {index + 1} Age</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter age"
-                  keyboardType="numeric"
-                  value={member.age}
-                  onChangeText={(val) => {
-                    const updated = [...memberDetails];
-                    updated[index].age = val;
-                    setMemberDetails(updated);
-                  }}
-                />
-              </View>
-            ))}
-          </View>
-        )}
+          <TouchableOpacity style={styles.primaryBtn} onPress={handleRegister}>
+            <Text style={styles.btnText}>VALIDATE & REGISTER</Text>
+            <MaterialIcons name="near-me" size={20} color="white" style={{ marginLeft: 12 }} />
+          </TouchableOpacity>
 
+          <TouchableOpacity style={styles.linkBtn} onPress={() => router.push("/login")}>
+            <Text style={styles.linkText}>ALREADY AUTHENTICATED? SIGN IN</Text>
+          </TouchableOpacity>
+        </View>
 
-        {/* Shopkeeper-specific Fields */}
-        {role === "shopkeeper" && (
-          <TextInput style={styles.input} placeholder="Shop Name" value={shopName} onChangeText={setShopName} />
-        )}
-
-        <TouchableOpacity style={styles.button} onPress={handleRegister}>
-          <Text style={styles.buttonText}>Register</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={() => router.push("/(tabs)/login")}>
-          <Text style={styles.link}>Already have an account? Sign in</Text>
-        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { padding: 30, backgroundColor: "#f5f5f5" },
-  headerRow: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
-  emblem: { width: 40, height: 40, marginRight: 10 },
-  title: { fontSize: 18, fontWeight: "bold", color: "#003366" },
-  sectionTitle: { fontSize: 24, fontWeight: "bold", color: "#003366", marginBottom: 20, textAlign: "center" },
-  input: { backgroundColor: "#fff", padding: 14, borderRadius: 6, marginBottom: 14, fontSize: 16, borderWidth: 1, borderColor: "#ccc" },
-  button: { backgroundColor: "#003366", paddingVertical: 14, borderRadius: 6, alignItems: "center", marginBottom: 20 },
-  buttonText: { color: "white", fontSize: 16, fontWeight: "bold" },
-  link: { fontSize: 14, color: "#00796B", textAlign: "center", fontWeight: "600" },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#003366",
-    marginBottom: 4,
-  },
+const InputField = ({ icon, placeholder, value, onChange, keyboard = "default", secure = false }) => (
+  <View style={styles.inputContainer}>
+    <Feather name={icon} size={18} color="#003366" />
+    <TextInput
+      placeholder={placeholder}
+      placeholderTextColor="#94A3B8"
+      value={value}
+      onChangeText={onChange}
+      style={styles.input}
+      keyboardType={keyboard}
+      secureTextEntry={secure}
+      autoCapitalize="none"
+    />
+  </View>
+);
 
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: "#F4F7FB" },
+  scrollContent: { padding: 20, paddingBottom: 40 },
+  header: { flexDirection: "row", alignItems: "center", marginBottom: 24, marginTop: 10 },
+  backBtn: { flexDirection: "row", alignItems: "center", backgroundColor: "white", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, elevation: 4 },
+  backText: { marginLeft: 4, fontWeight: "800", color: "#003366", fontSize: 13 },
+  headerTitle: { fontSize: 16, fontWeight: "900", color: "#003366", marginLeft: 20, textTransform: "uppercase", letterSpacing: 1 },
+
+  card: {
+    backgroundColor: "white",
+    borderRadius: 32,
+    padding: 24,
+    elevation: 8,
+    shadowColor: "#003366",
+    shadowOpacity: 0.1,
+    shadowRadius: 15,
+    borderWidth: 1,
+    borderColor: "#EEF2F6",
+  },
+  formTitle: { fontSize: 24, fontWeight: "900", color: "#003366", textAlign: "center" },
+  formSubtitle: { fontSize: 13, color: "#64748B", textAlign: "center", marginTop: 6, fontWeight: "600", marginBottom: 20 },
+
+  label: { fontSize: 10, fontWeight: "900", color: "#003366", textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 10, marginTop: 24 },
+
+  inputContainer: { flexDirection: "row", alignItems: "center", backgroundColor: "#F8FAFC", borderRadius: 16, borderWidth: 1.5, borderColor: "#E2E8F0", paddingHorizontal: 16, marginBottom: 12 },
+  input: { flex: 1, height: 50, marginLeft: 12, fontSize: 14, color: "#003366", fontWeight: "700" },
+
+  pickerContainer: { flexDirection: "row", alignItems: "center", backgroundColor: "#F8FAFC", borderRadius: 16, borderWidth: 1.5, borderColor: "#E2E8F0", paddingHorizontal: 16, height: 50, marginBottom: 12, overflow: "hidden" },
+  picker: { flex: 1, color: "#003366", marginLeft: 8 },
+
+  memberBox: { marginTop: 20, padding: 20, backgroundColor: "#F1F5F9", borderRadius: 24 },
+  memberHeader: { fontSize: 14, fontWeight: "900", color: "#003366", marginBottom: 16, borderLeftWidth: 4, borderLeftColor: "#FF9933", paddingLeft: 12 },
+  memberRow: { marginBottom: 24 },
+  miniLabel: { fontSize: 10, fontWeight: "800", color: "#64748B", marginBottom: 8, textTransform: "uppercase" },
+
+  primaryBtn: {
+    backgroundColor: "#003366",
+    flexDirection: "row",
+    height: 64,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 40,
+    elevation: 4,
+  },
+  btnText: { color: "white", fontSize: 15, fontWeight: "900", letterSpacing: 1 },
+
+  linkBtn: { marginTop: 24, alignItems: "center" },
+  linkText: { fontSize: 11, fontWeight: "900", color: "#64748B", letterSpacing: 1 },
 });

@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { requireAuth, requireAdmin, requireShopkeeper } = require('../middleware/auth');
 const crypto = require("crypto");
 const User = require("../models/user");
 const nodemailer = require("nodemailer");
@@ -9,6 +9,10 @@ const LoginModel = require("../models/Login");
 const { getRationEntitlement } = require("../utils/ration");
 const { signAccessToken, signRefreshToken, verifyRefresh, verifyAccess } = require("../utils/jwt");
 const bcrypt = require("bcrypt");
+const admin = require("../config/firebase");
+const { Expo } = require("expo-server-sdk");
+const expo = new Expo();
+const Notification = require("../models/notification");
 
 
 // 🔑 Admin seeding
@@ -94,7 +98,6 @@ router.post("/register-shopkeeper", async (req, res) => {
 });
 
 // 🔑 Send OTP (User Aadhaar + Email OR Shopkeeper Email + Phone)
-// 🔑 Send OTP (User Aadhaar + Email OR Shopkeeper Email + Phone)
 router.post("/send-otp", async (req, res) => {
   try {
     const { aadhaar, email, phone } = req.body;
@@ -169,28 +172,37 @@ router.post("/verify-otp", async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
-// 🔑 Password Login
+
 // 🔑 Password Login
 router.post("/login", async (req, res) => {
   try {
-    const { email, password, role } = req.body;
+    const { email, rationCard, password, role } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ message: "Email and password are required" });
+    if (role === "user") {
+      if (!rationCard) {
+        return res.status(400).json({ message: "Ration Card is required" });
+      }
+    } else {
+      if (!email || !password) {
+        return res.status(400).json({ message: "Email and password are required" });
+      }
     }
 
-    // Fetch user by email
-    const user = await User.findOne({ email });
+    // Fetch user based on role
+    let user;
+    if (role === "user") {
+      user = await User.findOne({ rationCard, role: "user" });
+    } else {
+      user = await User.findOne({ email, role });
+    }
+
     if (!user) return res.status(400).json({ message: "User not registered" });
 
-    // Optional: check role if provided
-    if (role && user.role !== role) {
-      return res.status(400).json({ message: `User not registered with role ${role}` });
+    // Compare password (only for non-user roles)
+    if (role !== "user") {
+      const isMatch = await user.comparePassword(password);
+      if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
     }
-
-    // Compare password (plain text from frontend with hashed password in DB)
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
 
     // Update last login & balance (for users)
     user.lastLogin = new Date();
@@ -209,14 +221,18 @@ router.post("/login", async (req, res) => {
 
     // Record login event
     await LoginModel.create({
-      username: user.email,
+      username: user.email || user.rationCard,
       ipAddress: req.ip
     });
 
     res.status(200).json({ message: "Login successful", user, accessToken, refreshToken });
   } catch (err) {
-    console.error("Login error:", err);
-    res.status(500).json({ message: "Server error" });
+    console.error("❌ Login error:", err);
+    res.status(500).json({
+      message: "Server error",
+      error: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
   }
 });
 
@@ -312,9 +328,6 @@ router.post("/logout", async (req, res) => {
   }
 });
 
-
-
-
 router.get("/admin/panel", requireAuth, requireAdmin, async (req, res) => {
   try {
     // Existing counts
@@ -345,23 +358,336 @@ router.get("/admin/panel", requireAuth, requireAdmin, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 // 📝 Get user by ID
 router.get("/user/:id", requireAuth, async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
-    console.log("Fetched user from DB:", user);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // Add computed fields if needed
+    // Ensure issue and expiry dates are present
+    const issueDate = user.issueDate || new Date();
+    const expiryDate = user.expiryDate || new Date(new Date().setFullYear(new Date().getFullYear() + 5));
+
+    // Add computed fields
     const userData = {
       ...user.toObject(),
-      cardType: "BPL (Priority)",   // or compute based on rationCard/state
-      status: "Active"              // or compute based on rationCard existence
+      issueDate,
+      expiryDate,
+      cardType: "BPL (Priority)",
+      status: "Active"
     };
 
     res.json(userData);
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+});
+
+// 📱 Save FCM Token
+router.post("/save-token", requireAuth, async (req, res) => {
+  try {
+    const { token } = req.body;
+    // req.user from middleware has 'sub' for ID
+    const user = await User.findById(req.user.sub);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    user.fcmToken = token;
+    await user.save();
+
+    res.json({ message: "Token saved" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🔔 Admin or Shopkeeper sends KYC reminder
+router.post("/send-kyc-reminder", requireAuth, async (req, res) => {
+  if (req.user.role !== "shopkeeper" && req.user.role !== "admin") {
+    return res.status(403).json({ message: "Access denied: unauthorized role" });
+  }
+  try {
+    const { userId } = req.body;
+    let usersToSend = [];
+
+    if (userId) {
+      const user = await User.findById(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      if (user.kycStatus === "Verified") {
+        return res.status(400).json({ message: "User KYC already completed" });
+      }
+      usersToSend = [user];
+    } else {
+      usersToSend = await User.find({ kycStatus: { $in: ["Pending", "Rejected"] } });
+    }
+
+    let sentCount = 0;
+    let emailsSent = 0;
+    let skippedNoToken = 0;
+    let skippedRateLimit = 0;
+    let failedCount = 0;
+    let messages = [];
+    const now = new Date();
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    // 1. Identify non-rate-limited users
+    const usersToProcess = usersToSend.filter(u =>
+      !(u.lastKycReminderSent && new Date(u.lastKycReminderSent) > twentyFourHoursAgo)
+    );
+    skippedRateLimit = usersToSend.length - usersToProcess.length;
+
+    if (usersToProcess.length > 0) {
+      // 2. Save in-app Notifications to DB
+      const notificationDocs = usersToProcess.map(u => ({
+        user: u._id,
+        title: "KYC Reminder",
+        body: "Please complete your KYC to continue using services.",
+        type: "kycReminder",
+        metadata: { type: "kycReminder" }
+      }));
+      await Notification.insertMany(notificationDocs);
+
+      // 3. Update lastKycReminderSent
+      const userIds = usersToProcess.map(u => u._id);
+      await User.updateMany({ _id: { $in: userIds } }, { lastKycReminderSent: now });
+
+      // 4. Send Email Reminders
+      try {
+        const transporter = nodemailer.createTransport({
+          service: "gmail",
+          auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+        });
+
+        for (let u of usersToProcess) {
+          if (u.email) {
+            try {
+              await transporter.sendMail({
+                from: `"Smart Ration System" <${process.env.EMAIL_USER}>`,
+                to: u.email,
+                subject: "⚠️ Action Required: Complete Your KYC Verification",
+                html: `
+                  <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto; border: 1px solid #eee; border-radius: 12px; overflow: hidden;">
+                    <div style="background: #003366; padding: 24px; text-align: center;">
+                      <h2 style="color: white; margin: 0;">Smart Ration System</h2>
+                      <p style="color: #FF9933; margin: 6px 0 0;">KYC Verification Required</p>
+                    </div>
+                    <div style="padding: 24px;">
+                      <p>Dear <strong>${u.fullName}</strong>,</p>
+                      <p>Your KYC verification is <strong style="color:#D32F2F;">pending</strong>. Please complete it to continue receiving ration benefits without interruption.</p>
+                      <p style="background: #FFF3E0; padding: 12px; border-radius: 8px; border-left: 4px solid #FF9933;">
+                        ⚠️ Unverified accounts may be restricted from accessing distribution services.
+                      </p>
+                      <p>Please log into the app and complete your KYC today.</p>
+                      <p style="margin-top: 24px; color: #999; font-size: 12px;">– Smart Ration Distribution System</p>
+                    </div>
+                  </div>
+                `
+              });
+              emailsSent++;
+            } catch (mailErr) {
+              console.error(`Email failed for ${u.email}:`, mailErr.message);
+            }
+          }
+        }
+      } catch (transportErr) {
+        console.error("Email transporter error:", transportErr.message);
+      }
+
+      // 5. Prepare Push Notification Messages
+      for (let user of usersToProcess) {
+        if (user.fcmToken && Expo.isExpoPushToken(user.fcmToken)) {
+          messages.push({
+            to: user.fcmToken,
+            sound: "default",
+            title: "KYC Reminder",
+            body: "Please complete your KYC to continue using services.",
+            data: { type: "kycReminder" },
+            _user: user
+          });
+        } else {
+          skippedNoToken++;
+        }
+      }
+
+      // 6. Send Push Chunks
+      if (messages.length > 0) {
+        let chunks = expo.chunkPushNotifications(messages);
+        for (let chunk of chunks) {
+          try {
+            let ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+            for (let i = 0; i < ticketChunk.length; i++) {
+              if (ticketChunk[i].status === "ok") sentCount++;
+              else failedCount++;
+            }
+          } catch (error) {
+            console.error("Chunk send error:", error);
+            failedCount += chunk.length;
+          }
+        }
+      }
+    }
+
+    const summary = `In-app notifications: ${usersToProcess.length} | Emails sent: ${emailsSent} | Push sent: ${sentCount} | Skipped (rate-limit): ${skippedRateLimit}`;
+    console.log(`[KYC Reminder Summary] ${summary}`);
+
+    res.json({
+      success: true,
+      notificationsSaved: usersToProcess.length,
+      emailsSent,
+      sentCount,
+      skippedNoToken,
+      skippedRateLimit,
+      failedCount,
+      message: summary
+    });
+
+  } catch (err) {
+    console.error("KYC Reminder API error:", err);
+    res.status(500).json({ error: "Failed to process KYC reminders" });
+  }
+});
+
+// ============================
+// ✅ FETCH NOTIFICATIONS
+// ============================
+router.get("/notifications", requireAuth, async (req, res) => {
+  try {
+    const notifications = await Notification.find({ user: req.user.sub })
+      .sort({ createdAt: -1 })
+      .limit(50);
+    res.json(notifications);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch notifications" });
+  }
+});
+
+// ✅ MARK AS READ
+router.patch("/notifications/:id/read", requireAuth, async (req, res) => {
+  try {
+    const notification = await Notification.findOneAndUpdate(
+      { _id: req.params.id, user: req.user.sub },
+      { read: true },
+      { new: true }
+    );
+    if (!notification) return res.status(404).json({ error: "Notification not found" });
+    res.json({ success: true, notification });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update notification" });
+  }
+});
+
+// ✅ DELETE SPECIFIC NOTIFICATION
+router.delete("/notifications/:id", requireAuth, async (req, res) => {
+  try {
+    const notification = await Notification.findOneAndDelete({
+      _id: req.params.id,
+      user: req.user.sub
+    });
+    if (!notification) return res.status(404).json({ error: "Notification not found" });
+    res.json({ success: true, message: "Notification deleted" });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete notification" });
+  }
+});
+
+// ✅ MARK ALL NOTIFICATIONS AS READ
+router.patch("/notifications/read-all", requireAuth, async (req, res) => {
+  try {
+    await Notification.updateMany({ user: req.user.sub, read: false }, { read: true });
+    res.json({ success: true, message: "All notifications marked as read" });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to mark all as read" });
+  }
+});
+
+// ✅ DELETE ALL NOTIFICATIONS
+router.delete("/notifications", requireAuth, async (req, res) => {
+  try {
+    await Notification.deleteMany({ user: req.user.sub });
+    res.json({ success: true, message: "All notifications cleared" });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to clear notifications" });
+  }
+});
+
+// 🔒 Submit Member KYC details
+router.post("/member-kyc-submit", requireAuth, async (req, res) => {
+  try {
+    const { memberId, name, age, aadhaarNumber } = req.body;
+    const user = await User.findById(req.user.sub);
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const member = user.memberDetails.id(memberId);
+    if (!member) return res.status(404).json({ message: "Member not found" });
+
+    // Update member fields
+    if (name) member.name = name;
+    if (age) member.age = age;
+    if (aadhaarNumber) member.aadhaarNumber = aadhaarNumber;
+
+    // Set member status to Pending for review
+    member.kycStatus = "Pending";
+
+    await user.save();
+
+    // ✅ Notify assigned shopkeeper
+    if (user.assignedShop) {
+      const Notification = require("../models/notification");
+      await Notification.create({
+        user: user.assignedShop,
+        title: "Member KYC Submitted",
+        body: `Member ${member.name} of household ${user.fullName} has submitted KYC details.`,
+        type: "kycReminder",
+        metadata: { userId: user._id, memberId: member._id, type: "member" }
+      });
+    }
+
+    res.json({ message: "Member KYC submitted successfully", user });
+  } catch (err) {
+    console.error("Member KYC Submission error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// 🔒 Submit KYC details
+router.post("/kyc-submit", requireAuth, async (req, res) => {
+  try {
+    const { fullName, phone, email, city, country, aadhaarNumber, rationCard } = req.body;
+    const user = await User.findById(req.user.sub);
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Update fields
+    if (fullName) user.fullName = fullName;
+    if (phone) user.phone = phone;
+    if (email) user.email = email;
+    if (city) user.city = city;
+    if (country) user.country = country;
+    if (aadhaarNumber) user.aadhaarNumber = aadhaarNumber;
+    if (rationCard) user.rationCard = rationCard;
+
+    // Set status to Pending for review
+    user.kycStatus = "Pending";
+
+    await user.save();
+
+    // ✅ Notify assigned shopkeeper
+    if (user.assignedShop) {
+      const Notification = require("../models/notification");
+      await Notification.create({
+        user: user.assignedShop,
+        title: "Household KYC Submitted",
+        body: `Head of Household ${user.fullName} has submitted their KYC details.`,
+        type: "kycReminder",
+        metadata: { userId: user._id, type: "head" }
+      });
+    }
+
+    res.json({ message: "KYC submitted successfully", user });
+  } catch (err) {
+    console.error("KYC Submission error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 });
 

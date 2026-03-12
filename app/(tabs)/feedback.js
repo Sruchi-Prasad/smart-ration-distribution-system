@@ -1,39 +1,36 @@
-import { MaterialIcons } from "@expo/vector-icons";
+import { Feather, MaterialIcons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
+import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import Toast from "react-native-toast-message";
+import { API_BASE } from "../../utils/config";
 
 export default function FeedbackPage() {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [type, setType] = useState("Suggestion");
   const [message, setMessage] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
-  const [shops, setShops] = useState([]);              // Stores shop list from DB
-  const [selectedShop, setSelectedShop] = useState(""); // Selected shopId
-  const [shopFeedback, setShopFeedback] = useState([]); // Feedback for selected shop
+  const [shops, setShops] = useState([]);
+  const [selectedShop, setSelectedShop] = useState("");
+  const [shopFeedback, setShopFeedback] = useState([]);
 
-  // Fetch shopkeepers from DB
   useEffect(() => {
-    fetch("http://localhost:8000/api/shops")
+    fetch(`${API_BASE}/api/shops`)
       .then(res => res.json())
-      .then(data => {
-        console.log("Shops fetched:", data);
-        setShops(data);
-      })
+      .then(data => setShops(data))
       .catch(err => console.log("Error fetching shops", err));
   }, []);
 
-  // Fetch feedback when a shop is selected
   useEffect(() => {
     if (!selectedShop) return;
-
-    fetch(`http://localhost:8000/api/feedback/shop/${selectedShop}`)
+    fetch(`${API_BASE}/api/feedback/shop/${selectedShop}`)
       .then(res => res.json())
       .then(data => setShopFeedback(data))
-      .catch(err => console.log("Error fetching shop feedback", err));
+      .catch(err => console.log("Error fetching feedback", err));
   }, [selectedShop]);
 
   const handleSubmit = async () => {
@@ -47,25 +44,17 @@ export default function FeedbackPage() {
     }
 
     try {
-      const res = await fetch("http://localhost:8000/api/feedback", {
+      const res = await fetch(`${API_BASE}/api/feedback`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          shopId: selectedShop, // Send shopId
-          name,
-          email,
-          type,
-          message
-        })
+        body: JSON.stringify({ shopId: selectedShop, name, email, type, message })
       });
 
       if (res.ok) {
-        Toast.show({ type: "success", text1: "Thank you!", text2: "Your feedback has been submitted ✅" });
+        Toast.show({ type: "success", text1: "Thank you!", text2: "Feedback submitted successfully ✅" });
         setSubmitted(true);
         setName(""); setEmail(""); setMessage(""); setType("Suggestion");
-
-        // Refresh feedback list
-        fetch(`http://localhost:8000/api/feedback/shop/${selectedShop}`)
+        fetch(`${API_BASE}/api/feedback/shop/${selectedShop}`)
           .then(res => res.json())
           .then(data => setShopFeedback(data));
       }
@@ -75,120 +64,199 @@ export default function FeedbackPage() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <View style={styles.header}>
-        <Image source={require("../../assets/images/emblem.png")} style={styles.emblem} />
-        <Text style={styles.title}>SMART RATION DISTRIBUTION SYSTEM</Text>
-      </View>
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-      <View style={styles.banner}>
-        <MaterialIcons name="feedback" size={22} color="white" style={{ marginRight: 8 }} />
-        <Text style={styles.bannerText}>We value your feedback! Share your thoughts below.</Text>
-      </View>
-
-      <View style={styles.card}>
-        {/* Shop Dropdown */}
-        <Text style={styles.label}>Select Shop</Text>
-
-
-        <View style={styles.inputRow}>
-          <MaterialIcons name="person" size={20} color="#003366" />
-          <TextInput
-            style={styles.input}
-            placeholder="Your Name (optional)"
-            value={name}
-            onChangeText={setName}
-          />
+        {/* HEADER */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <MaterialIcons name="arrow-back-ios" size={20} color="#003366" />
+            <Text style={styles.backText}>Return</Text>
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.inputRow}>
-          <MaterialIcons name="email" size={20} color="#003366" />
-          <TextInput
-            style={styles.input}
-            placeholder="Your Email (optional)"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-          />
+        {/* HERO BANNER */}
+        <View style={styles.heroCard}>
+          <View style={styles.heroIconBox}>
+            <MaterialIcons name="thumbs-up-down" size={32} color="white" />
+          </View>
+          <View style={styles.heroTextContent}>
+            <Text style={styles.heroTitle}>Citizen Feedback</Text>
+            <Text style={styles.heroSub}>Help us improve the Smart Ration distribution system.</Text>
+          </View>
         </View>
 
-        <View style={styles.pickerWrapper}>
-          <Picker
-            selectedValue={selectedShop}
-            onValueChange={(val) => setSelectedShop(val)}
-            style={styles.picker}
-          >
-            <Picker.Item label="-- Select Shop --" value="" />
-            {shops.map(shop => (
-              <Picker.Item key={shop._id} label={shop.shopName} value={shop._id} />
-            ))}
-          </Picker>
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Submission Form</Text>
+
+          <Text style={styles.label}>Identity Details</Text>
+          <InputField icon="user" placeholder="Your Name (Optional)" value={name} onChange={setName} />
+          <InputField icon="mail" placeholder="Your Email (Optional)" value={email} onChange={setEmail} keyboard="email-address" />
+
+          <Text style={styles.label}>PDS Establishment</Text>
+          <View style={styles.pickerBox}>
+            <MaterialIcons name="store" size={20} color="#003366" />
+            <Picker selectedValue={selectedShop} onValueChange={(val) => setSelectedShop(val)} style={styles.picker}>
+              <Picker.Item label="-- Select Official Shop --" value="" />
+              {shops.map(shop => <Picker.Item key={shop._id} label={shop.shopName} value={shop._id} />)}
+            </Picker>
+          </View>
+
+          <Text style={styles.label}>Nature of Feedback</Text>
+          <View style={styles.pickerBox}>
+            <MaterialIcons name="list" size={20} color="#003366" />
+            <Picker selectedValue={type} onValueChange={(val) => setType(val)} style={styles.picker}>
+              <Picker.Item label="Suggestion" value="Suggestion" />
+              <Picker.Item label="Bug Report" value="Bug" />
+              <Picker.Item label="Formal Complaint" value="Complaint" />
+              <Picker.Item label="Other" value="Other" />
+            </Picker>
+          </View>
+
+          <Text style={styles.label}>Detailed Comments</Text>
+          <View style={styles.textAreaBox}>
+            <MaterialIcons name="comment" size={20} color="#003366" style={{ marginTop: 12 }} />
+            <TextInput
+              style={styles.textArea}
+              placeholder="Provide specific details here..."
+              value={message}
+              onChangeText={setMessage}
+              multiline
+            />
+          </View>
+
+          <TouchableOpacity style={styles.primaryBtn} onPress={handleSubmit}>
+            <Text style={styles.btnText}>SUBMIT TO OFFICIALS</Text>
+            <MaterialIcons name="send" size={20} color="white" style={{ marginLeft: 12 }} />
+          </TouchableOpacity>
         </View>
 
-        <Text style={styles.label}>Feedback Type</Text>
-        <View style={styles.pickerWrapper}>
-          <Picker selectedValue={type} onValueChange={(val) => setType(val)} style={styles.picker}>
-            <Picker.Item label="Suggestion" value="Suggestion" />
-            <Picker.Item label="Bug Report" value="Bug" />
-            <Picker.Item label="Complaint" value="Complaint" />
-            <Picker.Item label="Other" value="Other" />
-          </Picker>
-        </View>
-
-        <Text style={styles.label}>Your Feedback</Text>
-        <View style={styles.inputRow}>
-          <MaterialIcons name="comment" size={20} color="#003366" />
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Write your feedback here..."
-            value={message}
-            onChangeText={setMessage}
-            multiline
-          />
-        </View>
-
-        <TouchableOpacity style={styles.button} onPress={handleSubmit}>
-          <MaterialIcons name="send" size={20} color="white" />
-          <Text style={styles.buttonText}>Submit Feedback</Text>
-        </TouchableOpacity>
-
-        {submitted && (
-          <Text style={styles.successText}>✅ Feedback submitted successfully!</Text>
-        )}
-
-        {/* Feedback for selected shop */}
+        {/* HISTORY LIST */}
         {shopFeedback.length > 0 && (
-          <View style={{ marginTop: 20 }}>
-            <Text style={{ fontWeight: "bold", color: "#003366", marginBottom: 8 }}>Feedback for this shop:</Text>
-            {shopFeedback.map(fb => (
-              <View key={fb._id} style={{ padding: 8, backgroundColor: "#f0f0f0", borderRadius: 8, marginBottom: 6 }}>
-                <Text style={{ fontWeight: "600" }}>{fb.name || "Anonymous"} ({fb.type})</Text>
-                <Text>{fb.message}</Text>
-                <Text style={{ fontSize: 10, color: "#666" }}>{new Date(fb.createdAt).toLocaleString()}</Text>
+          <View style={styles.historySection}>
+            <View style={styles.historyHeader}>
+              <Text style={styles.historyTitle}>RECENT FEEDBACK FOR THIS SHOP</Text>
+              <View style={styles.countBadge}><Text style={styles.countText}>{shopFeedback.length}</Text></View>
+            </View>
+            {shopFeedback.map((fb, idx) => (
+              <View key={fb._id} style={styles.historyCard}>
+                <View style={styles.cardTop}>
+                  <View style={styles.userIcon}><Text style={styles.userInitial}>{(fb.name || "A")[0]}</Text></View>
+                  <View style={styles.cardHeaderInfo}>
+                    <Text style={styles.cardName}>{fb.name || "Anonymous User"}</Text>
+                    <Text style={styles.cardDate}>{new Date(fb.createdAt).toLocaleDateString()}</Text>
+                  </View>
+                  <View style={[styles.typeBadge, { backgroundColor: fb.type === 'Complaint' ? '#FEE2E2' : '#E0F2FE' }]}>
+                    <Text style={[styles.typeText, { color: fb.type === 'Complaint' ? '#991B1B' : '#075985' }]}>{fb.type.toUpperCase()}</Text>
+                  </View>
+                </View>
+                <Text style={styles.cardMessage}>{fb.message}</Text>
+                <View style={styles.receiptEdge} />
               </View>
             ))}
           </View>
         )}
-      </View>
-    </ScrollView>
+
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
+const InputField = ({ icon, placeholder, value, onChange, keyboard = "default" }) => (
+  <View style={styles.inputBox}>
+    <Feather name={icon} size={18} color="#003366" />
+    <TextInput
+      style={styles.input}
+      placeholder={placeholder}
+      placeholderTextColor="#94A3B8"
+      value={value}
+      onChangeText={onChange}
+      keyboardType={keyboard}
+    />
+  </View>
+);
+
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, padding: 20, backgroundColor: "#f5f5f5" },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 20 },
-  emblem: { width: 40, height: 40, marginRight: 10 },
-  title: { fontSize: 18, fontWeight: "bold", color: "#003366" },
-  banner: { flexDirection: "row", alignItems: "center", backgroundColor: "#003366", padding: 14, borderRadius: 10, marginBottom: 20 },
-  bannerText: { color: "white", fontWeight: "600", fontSize: 15 },
-  card: { backgroundColor: "#fff", padding: 18, borderRadius: 12 },
-  label: { fontSize: 14, fontWeight: "bold", color: "#003366", marginTop: 14 },
-  inputRow: { flexDirection: "row", alignItems: "center", marginTop: 8 },
-  input: { flex: 1, backgroundColor: "#fff", borderRadius: 8, borderWidth: 1, borderColor: "#ccc", padding: 10, marginLeft: 8, fontSize: 14 },
-  textArea: { height: 100, textAlignVertical: "top" },
-  pickerWrapper: { borderWidth: 1, borderColor: "#ccc", borderRadius: 8, marginTop: 8, overflow: "hidden" },
-  picker: { height: 48 },
-  button: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#003366", padding: 14, borderRadius: 8, marginTop: 24 },
-  buttonText: { color: "white", fontWeight: "bold", fontSize: 16, marginLeft: 8 },
-  successText: { marginTop: 12, color: "#4CAF50", fontWeight: "600", textAlign: "center" },
+  safeArea: { flex: 1, backgroundColor: "#F4F7FB" },
+  scrollContent: { padding: 20, paddingBottom: 40 },
+  header: { flexDirection: "row", alignItems: "center", marginBottom: 20, marginTop: 10 },
+  backBtn: { flexDirection: "row", alignItems: "center", backgroundColor: "white", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, elevation: 4 },
+  backText: { marginLeft: 4, fontWeight: "800", color: "#003366", fontSize: 13 },
+
+  heroCard: {
+    backgroundColor: "#003366",
+    borderRadius: 28,
+    padding: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 24,
+    elevation: 8,
+    borderBottomWidth: 4,
+    borderBottomColor: "#FF9933",
+  },
+  heroIconBox: { width: 64, height: 64, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.1)", justifyContent: "center", alignItems: "center" },
+  heroTextContent: { flex: 1, marginLeft: 20 },
+  heroTitle: { color: "white", fontSize: 22, fontWeight: "900", letterSpacing: 0.5 },
+  heroSub: { color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "600", marginTop: 4, lineHeight: 18 },
+
+  card: {
+    backgroundColor: "white",
+    borderRadius: 32,
+    padding: 24,
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 15,
+    borderWidth: 1,
+    borderColor: "#EEF2F6",
+  },
+  sectionTitle: { fontSize: 15, fontWeight: "900", color: "#003366", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 },
+  label: { fontSize: 10, fontWeight: "900", color: "#64748B", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, marginTop: 24 },
+
+  inputBox: { flexDirection: "row", alignItems: "center", backgroundColor: "#F8FAFC", borderRadius: 16, borderWidth: 1.5, borderColor: "#E2E8F0", paddingHorizontal: 16, marginBottom: 12 },
+  input: { flex: 1, height: 50, marginLeft: 12, fontSize: 14, color: "#003366", fontWeight: "700" },
+
+  pickerBox: { flexDirection: "row", alignItems: "center", backgroundColor: "#F8FAFC", borderRadius: 16, borderWidth: 1.5, borderColor: "#E2E8F0", paddingHorizontal: 16, height: 52, marginBottom: 12, overflow: "hidden" },
+  picker: { flex: 1, color: "#003366", marginLeft: 8 },
+
+  textAreaBox: { flexDirection: "row", backgroundColor: "#F8FAFC", borderRadius: 16, borderWidth: 1.5, borderColor: "#E2E8F0", paddingHorizontal: 16, minHeight: 120 },
+  textArea: { flex: 1, paddingVertical: 14, marginLeft: 12, fontSize: 14, color: "#003366", fontWeight: "700", textAlignVertical: "top" },
+
+  primaryBtn: {
+    backgroundColor: "#003366",
+    flexDirection: "row",
+    height: 64,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 40,
+    elevation: 4,
+  },
+  btnText: { color: "white", fontSize: 14, fontWeight: "900", letterSpacing: 1.5 },
+
+  historySection: { marginTop: 40 },
+  historyHeader: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
+  historyTitle: { fontSize: 11, fontWeight: "900", color: "#64748B", letterSpacing: 1.5 },
+  countBadge: { marginLeft: 10, backgroundColor: "#E2E8F0", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  countText: { fontSize: 10, fontWeight: "900", color: "#003366" },
+
+  historyCard: {
+    backgroundColor: "white",
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 16,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: "#EEF2F6",
+  },
+  cardTop: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
+  userIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#F1F5F9", justifyContent: "center", alignItems: "center" },
+  userInitial: { fontSize: 16, fontWeight: "900", color: "#003366" },
+  cardHeaderInfo: { flex: 1, marginLeft: 12 },
+  cardName: { fontSize: 14, fontWeight: "900", color: "#003366" },
+  cardDate: { fontSize: 10, color: "#94A3B8", fontWeight: "700", marginTop: 2 },
+  typeBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  typeText: { fontSize: 9, fontWeight: "900" },
+  cardMessage: { fontSize: 13, color: "#475569", lineHeight: 20, fontWeight: "600" },
+  receiptEdge: { height: 2, borderBottomWidth: 1, borderBottomColor: "#E2E8F0", borderStyle: "dashed", marginTop: 16, width: "100%" },
 });

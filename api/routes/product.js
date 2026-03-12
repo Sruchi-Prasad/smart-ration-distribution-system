@@ -10,7 +10,20 @@ const { requireAuth } = require("../middleware/auth");
 // ==============================
 router.get("/", requireAuth, async (req, res) => {
   try {
-    const products = await Product.find().sort({ createdAt: -1 });
+    let products = await Product.find().sort({ createdAt: -1 });
+
+    // Seed default products if empty
+    if (products.length === 0) {
+      const defaultProducts = [
+        { name: "Rice", category: "Grain", price: 10, quantity: 1000, unit: "kg", minStock: 100, role: "admin" },
+        { name: "Wheat", category: "Grain", price: 12, quantity: 1000, unit: "kg", minStock: 100, role: "admin" },
+        { name: "Sugar", category: "Grocery", price: 40, quantity: 500, unit: "kg", minStock: 50, role: "admin" },
+        { name: "Oil", category: "Grocery", price: 100, quantity: 500, unit: "L", minStock: 50, role: "admin" },
+      ];
+      await Product.insertMany(defaultProducts);
+      products = await Product.find().sort({ createdAt: -1 });
+    }
+
     res.json(products);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -61,10 +74,13 @@ router.put("/:id", requireAuth, async (req, res) => {
   try {
     const updated = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
 
+    // Fetch user to get email for audit log
+    const currentUser = await User.findById(req.user.sub);
+
     // 🔎 Create audit log
     await AuditLog.create({
       action: "Updated Product",
-      user: req.user.email,
+      user: currentUser?.email || "Unknown User",
       details: `Product ID: ${req.params.id}`
     });
 
