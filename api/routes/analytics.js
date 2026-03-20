@@ -15,7 +15,7 @@ router.get("/stats", requireAuth, async (req, res) => {
     if (!user) return res.status(404).json({ error: "User not found" });
 
     if (user.role === "user") {
-      const entitlement = user.balance || { rice: 0, wheat: 0 };
+      const entitlement = user.balance || { rice: 0, wheat: 0, sugar: 0, oil: 0 };
       const consumptionTrend = {
         labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
         datasets: [{
@@ -35,13 +35,19 @@ router.get("/stats", requireAuth, async (req, res) => {
         { name: "Wheat", current: entitlement.wheat || 0, total: 15, color: "#4CAF50" },
       ];
 
+      // Calculate savings based on market vs ration price (approx 40 INR per kg diff)
+      const totalSaved = (entitlement.rice + entitlement.wheat) * 40;
+
       res.json({
         type: "user",
         consumptionTrend,
         entitlementStats,
         summary: {
-          totalSaved: "₹1,240 this month",
-          activeReminders: await Notification.countDocuments({ user: user._id, read: false })
+          totalSaved: `₹${totalSaved} estimated`,
+          activeReminders: await Notification.countDocuments({ user: user._id, read: false }),
+          nextDistribution: user.lastDistribution 
+            ? new Date(new Date(user.lastDistribution).setMonth(new Date(user.lastDistribution).getMonth() + 1)).toLocaleDateString()
+            : new Date().toLocaleDateString()
         }
       });
     } else if (user.role === "shopkeeper") {
@@ -51,7 +57,6 @@ router.get("/stats", requireAuth, async (req, res) => {
       startOfMonth.setDate(1);
       startOfMonth.setHours(0, 0, 0, 0);
 
-      // Removed redundant import: const Distribution = require("../models/distribution");
       const monthlyDistCount = await Distribution.countDocuments({
         shopkeeper: req.user.sub,
         date: { $gte: startOfMonth }
@@ -73,8 +78,12 @@ router.get("/stats", requireAuth, async (req, res) => {
               { "memberDetails.kycStatus": { $in: ["Pending", "Rejected"] } }
             ]
           }),
-          totalBeneficiaries: await User.countDocuments({ role: "user", assignedShop: req.user.sub }),
-          monthlyDistributions: monthlyDistCount
+          totalBeneficiaries: (await User.aggregate([
+            { $match: { role: "user", assignedShop: user._id } },
+            { $group: { _id: null, total: { $sum: "$members" } } }
+          ]))[0]?.total || 0,
+          monthlyDistributions: monthlyDistCount,
+          nextDistributionDate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toLocaleDateString()
         },
         distributionTrends: await Distribution.aggregate([
           {

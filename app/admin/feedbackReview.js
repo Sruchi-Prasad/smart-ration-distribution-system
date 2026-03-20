@@ -26,10 +26,10 @@ export default function FeedbackReviewPage() {
   };
 
   const renderItem = ({ item }) => (
-    <View style={styles.card}>
+    <View style={[styles.card, (["Card Problem", "Distribution Delay", "Wrong Quantity", "Complaint"].includes(item.type)) && styles.reportCard]}>
       <View style={styles.cardHeader}>
-        <View style={styles.typeBadge}>
-          <Text style={styles.typeText}>{item.type}</Text>
+        <View style={[styles.typeBadge, (["Card Problem", "Distribution Delay", "Wrong Quantity", "Complaint"].includes(item.type)) && styles.reportBadge]}>
+          <Text style={[styles.typeText, (["Card Problem", "Distribution Delay", "Wrong Quantity", "Complaint"].includes(item.type)) && styles.reportText]}>{item.type}</Text>
         </View>
         <Text style={styles.dateText}>
           {new Date(item.createdAt).toLocaleDateString()}
@@ -48,9 +48,16 @@ export default function FeedbackReviewPage() {
 
         <View style={[styles.infoItem, { marginLeft: 12 }]}>
           <MaterialIcons name="account-circle" size={16} color="#FF9933" />
-          <Text style={styles.infoText} numberOfLines={1}>
-            {item.user?.fullName || item.name || "Anon"}
-          </Text>
+          <View style={{ marginLeft: 6 }}>
+            <Text style={styles.infoText} numberOfLines={1}>
+              {item.user?.fullName || item.name || "Anon"}
+            </Text>
+            {(item.user?.email || item.email) && (
+              <Text style={[styles.infoText, { fontSize: 9, opacity: 0.7 }]} numberOfLines={1}>
+                {item.user?.email || item.email}
+              </Text>
+            )}
+          </View>
         </View>
       </View>
     </View>
@@ -145,6 +152,17 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#003366",
     textTransform: "uppercase",
+  },
+  reportCard: {
+    borderLeftWidth: 6,
+    borderLeftColor: "#D32F2F",
+    backgroundColor: "#FFFBFA",
+  },
+  reportBadge: {
+    backgroundColor: "#FFEBEB",
+  },
+  reportText: {
+    color: "#D32F2F",
   },
   dateText: {
     fontSize: 10,

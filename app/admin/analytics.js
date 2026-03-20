@@ -116,6 +116,13 @@ export default function AdminAnalyticsPage() {
             <Text style={styles.chartTitle}>Sentiment Spectrum</Text>
           </View>
           <DonutChart data={pieData} total={totals.totalFeedback} />
+          <TouchableOpacity 
+            style={styles.detailBtn}
+            onPress={() => router.push("/admin/reportReview")}
+          >
+            <Text style={styles.detailBtnText}>View Detailed Reports</Text>
+            <MaterialIcons name="chevron-right" size={18} color="#003366" />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.chartCard}>
@@ -308,5 +315,21 @@ const styles = StyleSheet.create({
   chart: {
     borderRadius: 16,
     marginVertical: 8,
+  },
+  detailBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 12,
+    backgroundColor: "#F0F4F8",
+    borderRadius: 12,
+    marginTop: 10,
+  },
+  detailBtnText: {
+    fontSize: 12,
+    fontWeight: "900",
+    color: "#003366",
+    textTransform: "uppercase",
+    marginRight: 4,
   }
 });

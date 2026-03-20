@@ -7,8 +7,8 @@ router.post("/", async (req, res) => {
   try {
     const { shopId, userId, name, email, type, message } = req.body;
 
-    if (!shopId || !message) {
-      return res.status(400).json({ error: "Shop and message required" });
+    if (!message) {
+      return res.status(400).json({ error: "Message required" });
     }
 
     const feedback = new Feedback({
@@ -48,7 +48,7 @@ router.get("/all", async (req, res) => {
   try {
     const feedbacks = await Feedback.find()
       .populate("shop", "shopName email") // show shop info
-      .populate("user", "name email")     // show user info
+      .populate("user", "fullName email")     // show user info
       .sort({ createdAt: -1 });
 
     res.json(feedbacks);

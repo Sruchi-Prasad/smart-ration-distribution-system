@@ -18,7 +18,7 @@ import { API_BASE } from "../../utils/config";
 import { fetchWithAuth as globalFetchWithAuth } from "../../utils/fetchWithAuth";
 
 import AlertsCard from "../components/AlertsCard";
-import Headers from "../components/Headers";
+import Header from "../components/Header";
 import IncompleteKYCCard from "../components/IncompleteKYCCard";
 import NextDistributionCard from "../components/NextDistributionCard";
 import PopupProfile from "../components/PopupProfile";
@@ -393,7 +393,7 @@ export default function ShopPanel() {
 
     return (
         <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-            <Headers router={router} togglePopup={togglePopup} />
+            <Header router={router} togglePopup={togglePopup} />
 
             {/* Popup Overlay */}
             {visible && (
@@ -471,7 +471,7 @@ export default function ShopPanel() {
             <View style={styles.topGrid}>
                 <StockCard stock={stock} />
                 <View style={styles.middleColumn}>
-                    <NextDistributionCard />
+                    <NextDistributionCard nextDate={statsData?.summary?.nextDistributionDate} />
                     <AlertsCard logs={logs} />
                 </View>
                 <QuickActionsCard />

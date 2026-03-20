@@ -310,7 +310,7 @@ export default function AdminPanel() {
         <Tile icon="rate-review" text="Feedback" onPress={() => router.push("/admin/feedbackReview")} />
         <Tile icon="local-shipping" text="Refill Requests" color="#FF9933" onPress={() => router.push("/admin/RefillRequests")} />
         <Tile icon="security" text="Audit Logs" onPress={() => router.push("/admin/auditLogs")} />
-        <Tile icon="insights" text="Reports" onPress={() => router.push("/admin/analytics")} />
+        <Tile icon="insights" text="Reports" onPress={() => router.push("/admin/reportReview")} />
         <Tile icon="settings" text="Settings" onPress={() => router.push("/admin/SystemSetting")} />
         <Tile icon="logout" text="Logout" color="#D32F2F" onPress={handleLogout} />
       </View>

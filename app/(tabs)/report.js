@@ -1,15 +1,20 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import React from "react";
-import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import Toast from "react-native-toast-message";
+import { useAuth } from "../../context/AuthContext";
+import { API_BASE } from "../../utils/config";
+import { fetchWithAuth } from "../../utils/fetchWithAuth";
 
 export default function ReportIssuePage() {
+  const { user } = useAuth();
   const [issueType, setIssueType] = React.useState("Card Problem");
   const [subject, setSubject] = React.useState("");
   const [description, setDescription] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!subject.trim() || !description.trim()) {
       Toast.show({
         type: "error",
@@ -18,15 +23,62 @@ export default function ReportIssuePage() {
       });
       return;
     }
-    // Replace with backend API call
-    Toast.show({
-      type: "success",
-      text1: "Issue Reported ✅",
-      text2: "We will look into it shortly",
-    });
-    setSubject("");
-    setDescription("");
-    setIssueType("Card Problem");
+
+    if (!user) {
+      Toast.show({
+        type: "error",
+        text1: "Auth Error ❌",
+        text2: "Please log in again",
+      });
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const payload = {
+        userId: user._id,
+        name: user.fullName,
+        email: user.email,
+        shopId: user.assignedShop, // Crucial for routing to correct shopkeeper context if needed
+        type: issueType,
+        message: `Subject: ${subject}\n\nDescription: ${description}`
+      };
+
+      console.log("🚀 Submitting report:", payload);
+
+      const res = await fetchWithAuth(`${API_BASE}/api/feedback`, {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        Toast.show({
+          type: "success",
+          text1: "Issue Reported ✅",
+          text2: "We will look into it shortly",
+        });
+        setSubject("");
+        setDescription("");
+        setIssueType("Card Problem");
+      } else {
+        const err = await res.json();
+        Toast.show({
+          type: "error",
+          text1: "Submission Failed ❌",
+          text2: err.error || "Please try again later",
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      Toast.show({
+        type: "error",
+        text1: "Server Error ❌",
+        text2: "Backend not reachable",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -76,9 +128,19 @@ export default function ReportIssuePage() {
           multiline
         />
 
-        <TouchableOpacity style={styles.button} onPress={handleSubmit}>
-          <MaterialIcons name="send" size={20} color="white" />
-          <Text style={styles.buttonText}>Submit Report</Text>
+        <TouchableOpacity
+          style={[styles.button, loading && { opacity: 0.7 }]}
+          onPress={handleSubmit}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="white" />
+          ) : (
+            <>
+              <MaterialIcons name="send" size={20} color="white" />
+              <Text style={styles.buttonText}>Submit Report</Text>
+            </>
+          )}
         </TouchableOpacity>
       </View>
     </ScrollView>

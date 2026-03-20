@@ -1,13 +1,13 @@
 import { useRouter } from "expo-router";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-export default function NextDistributionCard() {
+export default function NextDistributionCard({ nextDate }) {
   const router = useRouter();
 
   return (
     <View style={styles.card}>
       <Text style={styles.sectionTitle1}>📅 Next Distribution</Text>
-      <Text style={styles.sectionTitle}>24 Apr 3024</Text>
+      <Text style={styles.sectionTitle}>{nextDate || "Fetching..."}</Text>
       <TouchableOpacity
         style={styles.button}
         onPress={() => router.push("/shopkeeper/DistributionForm")}
